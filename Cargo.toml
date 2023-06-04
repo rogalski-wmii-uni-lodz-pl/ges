@@ -1,0 +1,13 @@
+[package]
+name = "ges"
+version = "0.1.0"
+edition = "2021"
+authors = [ "asdf" ]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools = "0.10.5"
+rand = "0.8.5"
+rand_xoshiro = "0.6.0"
+verifier = { path = "../vrp/verifier" }
