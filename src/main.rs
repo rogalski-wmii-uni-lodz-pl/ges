@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use ges::Data;
+use ges::{data::Data, Evaluator};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -18,7 +18,7 @@ fn main() {
         vec![148, 103, 197, 203, 124, 141, 69, 200, 0],
         vec![170, 134, 50, 156, 112, 168, 79, 205, 29, 87, 42, 123, 0],
         vec![
-            114, 159, 38, 150, 22, 151, 16, 140, 204, 187, 142, 111, 63, 56, 0
+            114, 159, 38, 150, 22, 151, 16, 140, 204, 187, 142, 111, 63, 56, 0,
         ],
         vec![190, 5, 10, 193, 46, 128, 106, 167, 207, 34, 95, 158, 0],
         vec![57, 118, 83, 143, 176, 36, 206, 33, 121, 165, 188, 108, 0],
@@ -36,7 +36,7 @@ fn main() {
 
     let mut total = 0;
     for route in routes.iter() {
-        let mut e = ges::Eval::new();
+        let mut e = ges::eval::Eval::new();
         for x in route.iter() {
             e.next(*x, &data);
             let ok = e.check(&data);
@@ -48,10 +48,16 @@ fn main() {
     let mut s = ges::Sol::new();
 
     for r in routes {
-        s.add_route(&data,&r);
+        s.add_route(&data, &r);
     }
 
-    s.check_add(&data, 177, 3);
+    let mut ev = Evaluator::with_pickup(&s, &data, 3);
+
+    let a = ev.check_add_to_route(177);
+
+    println!("{:#?}", a);
+
+    // s.check_add(&data, 177, 3);
 
     println!("{:#?}", total);
 }
