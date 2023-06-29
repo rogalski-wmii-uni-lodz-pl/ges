@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use ges::{data::Data, Evaluator};
+use ges::{data::Data, evaluator::Evaluator};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
