@@ -2,62 +2,65 @@ use crate::data::{idx, Data};
 
 pub struct Eval {
     pub node: usize,
-    pub dist: u64,
+    pub distance: u64,
     pub time: u64,
-    pub cap: i32,
+    pub capacity: i32,
 }
 
 impl Eval {
     pub fn new() -> Self {
         Eval {
             node: 0,
-            dist: 0,
+            distance: 0,
             time: 0,
-            cap: 0,
+            capacity: 0,
         }
     }
 
     pub fn reset_to(&mut self, other: &Self) {
         self.node = other.node;
-        self.dist = other.dist;
+        self.distance = other.distance;
         self.time = other.time;
-        self.cap = other.cap;
+        self.capacity = other.capacity;
     }
 
     pub fn next(&mut self, next_node: usize, data: &Data) {
         let nn = &data.pts[next_node];
-        self.dist += data.dist[idx(self.node, next_node)];
+        self.distance += data.dist[idx(self.node, next_node)];
         self.time += data.time[idx(self.node, next_node)];
         self.time = std::cmp::max(self.time, nn.start);
-        self.cap += nn.dem;
+        self.capacity += nn.dem;
 
         self.node = next_node;
     }
 
-    pub fn check_insert(
+    pub fn can_delivery_be_inserted(
         &mut self,
         inserted_node_id: usize,
         next_node_id: usize,
         data: &Data,
         latest_feasible_departure_from_next: u64,
     ) -> bool {
-        let ins = &data.pts[inserted_node_id];
+        let inserted_node = &data.pts[inserted_node_id];
 
         let ins_arrival = self.time + data.time[idx(self.node, inserted_node_id)];
-        let ins_service_start = std::cmp::max(ins_arrival, ins.start);
+        let ins_service_start = std::cmp::max(ins_arrival, inserted_node.start);
         let next_arrival = ins_service_start + data.time[idx(inserted_node_id, next_node_id)];
 
-        let c = self.cap + ins.dem;
+        // let capacity_after_insertion = self.capacity + inserted_node.dem;
 
-        ins_service_start <= ins.due
+        ins_service_start <= inserted_node.due
             && next_arrival <= latest_feasible_departure_from_next
-            && c >= 0
-            && c <= data.max_cap
+        // && capacity_after_insertion <= data.max_cap && c >= 0
+        // this check is unnecessary because pickups are always before deliveries, so if pickup has
+        // not violated the capacity constraint, then adding delivery will not violate the capacity
+        // constraint as well
     }
 
-    pub fn check(&self, data: &Data) -> bool {
-        let nn = &data.pts[self.node];
+    pub fn is_feasible(&self, data: &Data) -> bool {
+        let node = &data.pts[self.node];
 
-        self.time <= nn.due && self.cap <= data.max_cap && self.cap >= 0
+        self.time <= node.due && self.capacity <= data.max_cap
+        // && self.cap >= 0 this chceck is unnecessary because pickups are always before deliveries
     }
 }

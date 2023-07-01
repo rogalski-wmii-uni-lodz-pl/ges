@@ -1,11 +1,10 @@
-use crate::{Sol, UNSERVED};
-use crate::mov::Between;
+use crate::data::{Data, PTS};
 use crate::eval::Eval;
-use crate::data::Data;
-
+use crate::mov::Between;
+use crate::{Sol, UNSERVED};
 
 pub struct PickupInsertionEvaluator<'a> {
-    sol: &'a Sol,
+    sol: &'a Sol<'a>,
     data: &'a Data,
     after_pickup: usize,
     before_pickup: usize,
@@ -37,12 +36,13 @@ impl<'a> PickupInsertionEvaluator<'a> {
     }
 
     pub fn pickup_insertion_is_feasible(&self) -> bool {
-        self.evaluator.check(self.data)
+        self.evaluator.is_feasible(self.data)
     }
 
-    pub fn advance(&mut self) {
+    pub fn advance(&mut self, jump_forward: &[i32; PTS]) {
         self.before_pickup = self.after_pickup;
-        self.after_pickup = self.sol.next[self.after_pickup];
+        self.after_pickup =
+            (self.sol.next[self.after_pickup] as i32 + jump_forward[self.after_pickup]) as usize;
     }
 
     pub fn insert_pickup(&mut self) {
@@ -62,4 +62,3 @@ impl<'a> PickupInsertionEvaluator<'a> {
         self.after_pickup
     }
 }
-
