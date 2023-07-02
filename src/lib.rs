@@ -53,12 +53,21 @@ impl<'a> Sol<'a> {
         }
     }
 
-    fn recalc_route(&mut self, recalc_last: usize) {
-        if recalc_last == 0 {
-            return;
-        }
+    fn fix_evals(&mut self, first: usize) {
+        let mut ev = Eval::new();
+        let prev = self.prev[first];
+        ev.reset_to(&self.evals[prev]);
 
-        let mut node = recalc_last;
+        let mut node = first;
+        while node != 0 {
+            ev.next(node, self.data);
+            self.evals[node].reset_to(&ev);
+            node = self.next[node];
+        }
+    }
+
+    fn fix_latest_feasible_departures(&mut self, last: usize) {
+        let mut node = last;
         let pts = &self.data.pts;
         let mut after_node = self.next[node];
         let mut latest_feasible_departure = self.latest_feasible_departure[after_node];
@@ -72,31 +81,22 @@ impl<'a> Sol<'a> {
             after_node = node;
             node = self.prev[node];
         }
-
-        let mut prev = node;
-        node = after_node;
-
-        let mut ev = Eval::new();
-
-        while prev != recalc_last {
-            ev.next(node, self.data);
-            self.evals[node].reset_to(&ev);
-            prev = node;
-            node = self.next[node];
-        }
     }
 
     pub fn add_route(&mut self, route: &Vec<usize>) {
-        for (&bef, &aft) in route.iter().tuple_windows() {
-            self.prev[aft] = bef;
-            self.next[bef] = aft;
+        debug_assert!(route[0] == 0 && *route.last().unwrap() == 0);
+        // we get the second one and the penultimate one because first and last is 0
+        let first_non_depot = route[1];
+        let last_non_depot = route[route.len() - 2];
+        for (&before, &after) in route.iter().tuple_windows() {
+            self.prev[after] = before;
+            self.next[before] = after;
         }
         self.prev[0] = UNSERVED;
         self.next[0] = UNSERVED;
 
-        let penultimate = route[route.len() - 2];
-        self.next[penultimate] = 0;
-        self.recalc_route(penultimate);
+        self.fix_latest_feasible_departures(last_non_depot);
+        self.fix_evals(first_non_depot);
 
         debug_assert!({
             let mut e = Eval::new();
@@ -127,17 +127,31 @@ impl<'a> Sol<'a> {
     //     }
     // }
 
-    pub fn recalc_last(&self, pickup_idx: usize, delivery_idx: usize) -> usize {
-        if self.next[delivery_idx] != 0 {
-            // 0-...-delivery-*-...-0
-            self.next[delivery_idx]
-        } else if self.prev[delivery_idx] != pickup_idx {
-            // 0-...-pickup-...-*-delivery-0
-            self.prev[delivery_idx]
-        } else {
-            // 0-...-pickup-delivery-0
-            self.prev[pickup_idx]
+    fn get_nodes_to_recalculate_from_after_removal(
+        &self,
+        pickup_idx: usize,
+        delivery_idx: usize,
+    ) -> (usize, usize) {
+        let mut earliest = self.prev[pickup_idx];
+        let mut latest = self.next[delivery_idx];
+
+        if earliest == 0 {
+            earliest = self.next[pickup_idx];
         }
+
+        if earliest == delivery_idx {
+            earliest = latest;
+        }
+
+        if latest == 0 {
+            latest = self.prev[delivery_idx];
+        }
+
+        if latest == pickup_idx {
+            latest = earliest;
+        }
+
+        (earliest, latest)
     }
 
     pub fn remove_pair(&mut self, pickup_idx: usize) {
@@ -146,19 +160,28 @@ impl<'a> Sol<'a> {
 
         let delivery_idx = self.data.pair_of(pickup_idx);
 
-        let recalc_last = self.recalc_last(pickup_idx, delivery_idx);
+        let (before, after) =
+            self.get_nodes_to_recalculate_from_after_removal(pickup_idx, delivery_idx);
+
         self.unlink_unsafe(pickup_idx);
         self.unlink_unsafe(delivery_idx);
 
-        self.recalc_route(recalc_last);
+        if before != 0 {
+            self.fix_evals(before);
+        }
+
+        if after != 0 {
+            self.fix_latest_feasible_departures(after);
+        }
     }
 
     fn unlink_unsafe(&mut self, point_idx: usize) {
         let before = self.prev[point_idx];
         let after = self.next[point_idx];
 
-        self.next[point_idx] = UNSERVED; // required for is_removed to work
-        self.prev[point_idx] = UNSERVED; // for nice symmetry with the above
+        // needs to be in for is_removed to work
+        self.next[point_idx] = UNSERVED;
+        self.prev[point_idx] = UNSERVED;
 
         self.next[before] = after;
         self.prev[after] = before;
@@ -168,17 +191,40 @@ impl<'a> Sol<'a> {
         self.prev[0] = UNSERVED;
     }
 
+    fn get_nodes_to_recalculate_from_after_insertion(
+        &self,
+        pickup_idx: usize,
+        delivery_idx: usize,
+    ) -> (usize, usize) {
+        let mut earliest = self.prev[pickup_idx];
+        let mut latest = self.next[delivery_idx];
+
+        if earliest == 0 {
+            earliest = pickup_idx;
+        }
+
+        if latest == 0 {
+            latest = delivery_idx;
+        }
+
+        (earliest, latest)
+    }
+
     pub fn add_pair(&mut self, pickup_idx: usize, mov: &Move) {
         let delivery_idx = self.data.pair_of(pickup_idx);
 
         self.link_unsafe(pickup_idx, &mov.put_pickup_between);
         self.link_unsafe(delivery_idx, &mov.put_delivery_between);
 
-        let recalc_from = self.recalc_last(pickup_idx, delivery_idx);
-        self.recalc_route(recalc_from);
+        let (before, after) =
+            self.get_nodes_to_recalculate_from_after_insertion(pickup_idx, delivery_idx);
+
+        self.fix_evals(before);
+        self.fix_latest_feasible_departures(after);
     }
 
     fn link_unsafe(&mut self, point_idx: usize, &Between(before, after): &Between) {
+        debug_assert!(before != 0 && after != 0);
         self.next[before] = point_idx;
         self.next[point_idx] = after;
 
