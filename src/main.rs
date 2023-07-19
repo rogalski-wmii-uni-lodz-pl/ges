@@ -57,7 +57,6 @@ fn main() {
     //     total += e.distance;
     // }
 
-
     // for r in routes {
     //     s.add_route(&r);
     // }
@@ -66,9 +65,9 @@ fn main() {
 
     s.remove_pair(pickup_idx);
 
-    let mut ev = Evaluator::with_pickup(&s, &data, pickup_idx);
+    let mut ev = Evaluator::with_pickup(&data, pickup_idx);
 
-    let mov = ev.check_add_to_route(177);
+    let mov = ev.check_add_to_route(&s, 177);
 
     println!("{:#?}", mov);
 
@@ -82,11 +81,11 @@ fn main() {
     println!("{:#?}", s.removed_idx);
     println!("{:#?}", s.removed_times);
 
-    while let Some(lifo) = s.lifo() {
-        let mut ev = Evaluator::with_pickup(&s, &data, lifo);
+    while let Some(top) = s.lifo() {
+        ev.reset(top);
 
         for r in s.routes.iter() {
-            let mov = ev.check_add_to_route(*r);
+            let mov = ev.check_add_to_route(&s, *r);
             if mov.is_some() {
                 println!("{r} {:#?}", mov);
             }
@@ -98,5 +97,4 @@ fn main() {
     // println!("{:#?}", s.lifo());
     // println!("{:#?}", s.lifo());
     // println!("{:#?}", s.lifo());
-
 }
