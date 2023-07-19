@@ -20,6 +20,7 @@ pub struct Data {
     pub pts: [PointData; PTS],
     pub max_cap: i32,
     pub time: Vec<u64>,
+    pub points: usize,
 }
 
 pub fn idx(a: usize, b: usize) -> usize {
@@ -43,7 +44,7 @@ impl Data {
                 start: a.start as u64 * MULT,
                 due: a.due as u64 * MULT,
                 pair: pair as usize,
-                delivery: d == a.id,
+                delivery: d == 0,
             };
 
             for b in g.pts.iter() {
@@ -67,6 +68,7 @@ impl Data {
             time,
             max_cap: g.max_capacity,
             pts,
+            points: g.pts.len(),
         }
     }
 
