@@ -4,7 +4,6 @@ use crate::mov::Between;
 use crate::{Sol, UNSERVED};
 
 pub struct PickupInsertionEvaluator<'a> {
-    sol: &'a Sol<'a>,
     data: &'a Data,
     after_pickup: usize,
     before_pickup: usize,
@@ -13,9 +12,8 @@ pub struct PickupInsertionEvaluator<'a> {
 }
 
 impl<'a> PickupInsertionEvaluator<'a> {
-    pub fn new(sol: &'a Sol, data: &'a Data) -> Self {
+    pub fn new(data: &'a Data) -> Self {
         Self {
-            sol,
             data,
             idx: UNSERVED,
             after_pickup: UNSERVED,
@@ -24,11 +22,11 @@ impl<'a> PickupInsertionEvaluator<'a> {
         }
     }
 
-    pub fn reset(&mut self, idx: usize, start: usize) {
+    pub fn reset(&mut self, sol: &Sol, idx: usize, start: usize) {
         self.idx = idx;
         self.after_pickup = start;
-        self.before_pickup = self.sol.prev[self.after_pickup];
-        self.evaluator.reset_to(&self.sol.evals[self.before_pickup]);
+        self.before_pickup = sol.prev[self.after_pickup];
+        self.evaluator.reset_to(&sol.evals[self.before_pickup]);
     }
 
     pub fn can_continue(&self) -> bool {
@@ -39,14 +37,14 @@ impl<'a> PickupInsertionEvaluator<'a> {
         self.evaluator.is_feasible(self.data)
     }
 
-    pub fn advance(&mut self, jump_forward: &[i32; PTS]) {
+    pub fn advance(&mut self, sol: &Sol, jump_forward: &[i32; PTS]) {
         self.before_pickup = self.after_pickup;
         self.after_pickup =
-            (self.sol.next[self.after_pickup] as i32 + jump_forward[self.after_pickup]) as usize;
+            (sol.next[self.after_pickup] as i32 + jump_forward[self.after_pickup]) as usize;
     }
 
-    pub fn insert_pickup(&mut self) {
-        self.evaluator.reset_to(&self.sol.evals[self.before_pickup]);
+    pub fn insert_pickup(&mut self, sol: &Sol) {
+        self.evaluator.reset_to(&sol.evals[self.before_pickup]);
         self.evaluator.next(self.idx, self.data);
     }
 

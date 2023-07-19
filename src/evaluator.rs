@@ -28,8 +28,8 @@ impl<'a> Evaluator<'a> {
             data,
             pickup_idx: UNSERVED,
             delivery_idx: UNSERVED,
-            pickup_evaluator: PickupInsertionEvaluator::new(sol, data),
-            delivery_evaluator: DeliveryInsertionEvaluator::new(sol, data),
+            pickup_evaluator: PickupInsertionEvaluator::new(data),
+            delivery_evaluator: DeliveryInsertionEvaluator::new(data),
             removed: [0; 2 * K_MAX],
             jump_forward: [0; PTS],
             jump_backward: [0; PTS],
@@ -65,16 +65,17 @@ impl<'a> Evaluator<'a> {
 
     pub fn check_add_to_route(&mut self, start: usize) -> Option<Move> {
         let mut mov = Move::new();
-        self.pickup_evaluator.reset(self.pickup_idx, start);
+        self.pickup_evaluator
+            .reset(&self.sol, self.pickup_idx, start);
 
         while self.pickup_evaluator.can_continue() {
-            self.pickup_evaluator.insert_pickup();
+            self.pickup_evaluator.insert_pickup(&self.sol);
 
             if self.pickup_evaluator.pickup_insertion_is_feasible() {
                 self.check_delivery_insertions(&mut mov);
             }
 
-            self.pickup_evaluator.advance(&self.jump_forward);
+            self.pickup_evaluator.advance(&self.sol, &self.jump_forward);
         }
 
         mov_into_option(mov)
@@ -85,7 +86,7 @@ impl<'a> Evaluator<'a> {
             .reset(self.delivery_idx, &self.pickup_evaluator);
 
         self.delivery_evaluator
-            .check_rest_of_route(&self.jump_forward, mov);
+            .check_rest_of_route(self.sol, &self.jump_forward, mov);
     }
 }
 
