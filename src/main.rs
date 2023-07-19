@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use ges::{data::Data, evaluator::Evaluator};
+use ges::{data::Data, evaluator::Evaluator, mov::Move};
+
+use rand::{self, seq::IteratorRandom};
+
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -35,66 +38,39 @@ fn main() {
     // ];
 
     let mut s = ges::Sol::new(&data);
-    println!("{:#?}", data.points);
+    // println!("{:#?}", data.points);
     for i in 1..data.points {
         let p = data.pts[i];
-        println!("{}", p.delivery);
         if !p.delivery {
             let vec = vec![0, i, p.pair, 0];
-            println!("{:?}", vec);
             s.add_route(&vec)
         }
     }
 
-    // let mut total = 0;
-    // for route in routes.iter() {
-    //     let mut e = ges::eval::Eval::new();
-    //     for x in route.iter() {
-    //         e.next(*x, &data);
-    //         let ok = e.is_feasible(&data);
-    //         assert!(ok);
-    //     }
-    //     total += e.distance;
-    // }
 
-    // for r in routes {
-    //     s.add_route(&r);
-    // }
 
-    let pickup_idx = 3;
+    let mut ev = Evaluator::new(&data);
 
-    s.remove_pair(pickup_idx);
+    for i in 0.. {
+        let r = *s.routes.iter().choose(&mut rand::thread_rng()).unwrap();
+        s.remove_route(r);
+        while let Some(top) = s.lifo() {
+            ev.reset(top);
 
-    let mut ev = Evaluator::with_pickup(&data, pickup_idx);
+            let mut mov = Move::new();
+            for r in s.routes.iter() {
+                if let Some(mov2) = ev.check_add_to_route(&s, *r) {
+                    mov.pick(&mov2);
+                }
+            }
 
-    let mov = ev.check_add_to_route(&s, 177);
-
-    println!("{:#?}", mov);
-
-    s.add_pair(pickup_idx, &mov.unwrap());
-    // s.check_add(&data, 177, 3);
-
-    // println!("{:#?}", total);
-
-    s.remove_route(32);
-
-    println!("{:#?}", s.removed_idx);
-    println!("{:#?}", s.removed_times);
-
-    while let Some(top) = s.lifo() {
-        ev.reset(top);
-
-        for r in s.routes.iter() {
-            let mov = ev.check_add_to_route(&s, *r);
-            if mov.is_some() {
-                println!("{r} {:#?}", mov);
+            if !mov.empty() {
+                println!("{i}: {:#?}", mov);
+                s.add_pair(top, &mov);
             }
         }
+
+
     }
 
-    // s.add_pair(pickup_idx, &mov.unwrap());
-    // s.check_add(&data, 177, 3);
-    // println!("{:#?}", s.lifo());
-    // println!("{:#?}", s.lifo());
-    // println!("{:#?}", s.lifo());
 }

@@ -79,9 +79,9 @@ impl<'a> Sol<'a> {
         while node != 0 {
             let drive_time = self.data.time[idx(node, after_node)];
             latest_feasible_departure = latest_feasible_departure - drive_time;
-            self.latest_feasible_departure[node] = latest_feasible_departure;
             latest_feasible_departure =
-                std::cmp::min(pts[after_node].due, latest_feasible_departure);
+                std::cmp::min(pts[node].due, latest_feasible_departure);
+            self.latest_feasible_departure[node] = latest_feasible_departure;
             after_node = node;
             node = self.prev[node];
         }
@@ -140,9 +140,11 @@ impl<'a> Sol<'a> {
         // let mut after_cur = self.next[cur];
         while cur != 0 {
             self.first[cur] = UNSERVED;
-            self.removed_idx[self.heap_size] = cur;
-            self.removed_times[cur] += 1;
-            self.heap_size += 1;
+            if !self.data.pts[cur].delivery {
+                self.removed_idx[self.heap_size] = cur;
+                self.removed_times[cur] += 1;
+                self.heap_size += 1;
+            }
             let x = cur;
             cur = self.next[cur];
             self.next[x] = UNSERVED;
@@ -291,9 +293,6 @@ impl<'a> Sol<'a> {
     }
 
     fn link_unsafe(&mut self, point_idx: usize, &Between(before, after): &Between) {
-        dbg!(&point_idx);
-        dbg!(&before);
-        dbg!(&after);
         debug_assert!(before != 0 || after != 0);
         let first = if before == 0 {
             point_idx

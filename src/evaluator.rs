@@ -17,7 +17,7 @@ pub struct Evaluator<'a> {
     delivery_evaluator: DeliveryInsertionEvaluator<'a>,
     removed: [usize; 2 * K_MAX],
     jump_forward: [i32; PTS],
-    jump_backward: [i32; PTS],
+    // jump_backward: [i32; PTS],
 }
 
 impl<'a> Evaluator<'a> {
@@ -30,7 +30,7 @@ impl<'a> Evaluator<'a> {
             delivery_evaluator: DeliveryInsertionEvaluator::new(data),
             removed: [0; 2 * K_MAX],
             jump_forward: [0; PTS],
-            jump_backward: [0; PTS],
+            // jump_backward: [0; PTS],
         }
     }
 
@@ -46,7 +46,7 @@ impl<'a> Evaluator<'a> {
         self.delivery_idx = self.data.pair_of(pickup_idx);
         self.removed.iter().for_each(|&x| {
             self.jump_forward[x] = 0;
-            self.jump_backward[x] = 0;
+            // self.jump_backward[x] = 0;
         });
         self.removed = [0; 2 * K_MAX];
     }

@@ -22,7 +22,7 @@ impl Move {
 
     pub fn maybe_switch(&mut self, put_pickup_between: &Between, put_delivery_between: &Between) {
         self.times += 1;
-        if rand::random::<usize>() % self.times == 0 {
+        if (rand::random::<usize>() % self.times) == 0 {
             self.put_pickup_between = *put_pickup_between;
             self.put_delivery_between = *put_delivery_between;
         }
@@ -32,13 +32,11 @@ impl Move {
         return self.times == 0;
     }
 
-    // pub fn pick(self, other: &Self) -> Self {
-    //     let times = self.times + other.times;
-    //     let which = if rand::random::<usize>() % times < self.times {
-    //         &self
-    //     } else {
-    //         other
-    //     };
-    //     Self { times, ..(*which) }
-    // }
+    pub fn pick(&mut self, other: &Self) {
+        self.times += other.times;
+        if (rand::random::<usize>() % self.times) < other.times {
+            self.put_pickup_between = other.put_pickup_between;
+            self.put_delivery_between = other.put_delivery_between;
+        }
+    }
 }
