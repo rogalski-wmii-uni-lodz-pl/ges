@@ -2,6 +2,7 @@ use std::path::Path;
 
 use ges::{data::Data, evaluator::Evaluator, mov::Move};
 
+use itertools::Itertools;
 use rand::{self, seq::IteratorRandom};
 
 
@@ -48,13 +49,16 @@ fn main() {
     }
 
 
+    // let mut r = StdRng::seed_from_u64(11);
 
     let mut ev = Evaluator::new(&data);
 
     for i in 0.. {
-        let r = *s.routes.iter().choose(&mut rand::thread_rng()).unwrap();
+        let r = *s.routes.iter().sorted().choose(&mut rand::thread_rng()).unwrap();
+        // let v = s.routes.iter().collect_vec();
+        println!("{r:?}");
         s.remove_route(r);
-        while let Some(top) = s.lifo() {
+        while let Some(top) = s.top() {
             ev.reset(top);
 
             let mut mov = Move::new();
@@ -67,10 +71,12 @@ fn main() {
             if !mov.empty() {
                 println!("{i}: {:#?}", mov);
                 s.add_pair(top, &mov);
+                s.pop();
+            } else {
+                s.inc();
+                s.prn_heap();
             }
         }
-
-
     }
 
 }

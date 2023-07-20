@@ -1,9 +1,10 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, mem::replace};
 
 use data::{idx, Data, PTS};
 use eval::Eval;
 use itertools::Itertools;
 use mov::{Between, Move};
+use rand::Rng;
 
 pub mod data;
 pub mod eval;
@@ -79,8 +80,7 @@ impl<'a> Sol<'a> {
         while node != 0 {
             let drive_time = self.data.time[idx(node, after_node)];
             latest_feasible_departure = latest_feasible_departure - drive_time;
-            latest_feasible_departure =
-                std::cmp::min(pts[node].due, latest_feasible_departure);
+            latest_feasible_departure = std::cmp::min(pts[node].due, latest_feasible_departure);
             self.latest_feasible_departure[node] = latest_feasible_departure;
             after_node = node;
             node = self.prev[node];
@@ -118,23 +118,49 @@ impl<'a> Sol<'a> {
         self.next[point_idx] == UNSERVED
     }
 
-    // pub fn increase_removed_count(&mut self, point_idx: usize) {
-    //     debug_assert!(!self.is_removed(point_idx));
+    pub fn inc(&mut self) {
+        let top = self.heap_size - 1;
+        self.removed_times[self.removed_idx[top]] += 1;
+        let mut h = top;
+        let v = self.removed_times[self.removed_idx[top]];
+        let i = self.removed_idx[top];
+        while h != 0 {
+            if self.removed_times[self.removed_idx[h - 1]] > v {
+                self.removed_idx[h] = self.removed_idx[h - 1];
+                h -= 1;
+            } else {
+                break;
+            }
+        }
+        self.removed_idx[h] = i;
+        // let removed_times = self.removed_times[point_idx];
+        // let mut r = self.heap_size;
+        // self.removed_idx[point_idx] = r;
+        // self.heap_size += 1;
 
-    //     self.removed_times[point_idx] += 1;
-    //     let removed_times = self.removed_times[point_idx];
-    //     let mut r = self.heap_size;
-    //     self.removed_idx[point_idx] = r;
-    //     self.heap_size += 1;
+        // while r > 0 && (self.removed_times[self.removed_heap[(r - 1) / 2]] < removed_times) {
+        //     let parent = (r - 1) / 2;
+        //     std::mem::swap(&mut self.removed_heap[parent], &mut self.removed_heap[r]);
+        //     r = parent;
+        // }
+    }
 
-    //     while r > 0 && (self.removed_times[self.removed_heap[(r - 1) / 2]] < removed_times) {
-    //         let parent = (r - 1) / 2;
-    //         std::mem::swap(&mut self.removed_heap[parent], &mut self.removed_heap[r]);
-    //         r = parent;
-    //     }
-    // }
-    //
+    pub fn prn_heap(&self) {
+        println!("{:?}", self.removed_idx[0..self.heap_size].iter().map(|&x| (x, self.removed_times[x])).collect_vec());
+    }
+
+    pub fn perturb(&mut self) {
+        let mut idx = rand::thread_rng().gen_range(0..self.data.points);
+
+        while self.is_removed(idx) {
+            idx = rand::thread_rng().gen_range(0..self.data.points);
+
+
+        }
+    }
+
     pub fn remove_route(&mut self, first: usize) {
+        debug_assert!(self.prev[first] == 0);
         self.routes.remove(&first);
         let mut cur = first;
         // let mut after_cur = self.next[cur];
@@ -145,23 +171,24 @@ impl<'a> Sol<'a> {
                 self.removed_times[cur] += 1;
                 self.heap_size += 1;
             }
-            let x = cur;
-            cur = self.next[cur];
-            self.next[x] = UNSERVED;
-            self.prev[x] = UNSERVED;
+            self.prev[cur] = UNSERVED;
+            cur = replace(&mut self.next[cur], UNSERVED);
             // TODO: evals?
         }
 
         self.removed_idx[0..self.heap_size].sort_unstable_by_key(|&x| self.removed_times[x]);
     }
 
-    pub fn lifo(&mut self) -> Option<usize> {
+    pub fn top(&mut self) -> Option<usize> {
         if self.heap_size == 0 {
             None
         } else {
-            self.heap_size -= 1;
-            Some(self.removed_idx[self.heap_size])
+            Some(self.removed_idx[self.heap_size - 1])
         }
+    }
+
+    pub fn pop(&mut self) {
+        self.heap_size -= 1
     }
 
     // fn get_nodes_to_recalculate_from_after_removal(
@@ -205,12 +232,14 @@ impl<'a> Sol<'a> {
     }
 
     fn fix_route(&mut self, first: usize) {
+        debug_assert!(self.prev[first] == 0);
         let mut ev = Eval::new();
         let mut prev = self.prev[first];
         ev.reset_to(&self.evals[prev]);
 
         let mut node = first;
         while node != 0 {
+            self.first[node] = first;
             ev.next(node, self.data);
             self.evals[node].reset_to(&ev);
             prev = node;
@@ -239,6 +268,8 @@ impl<'a> Sol<'a> {
     fn unlink_unsafe(&mut self, point_idx: usize) {
         let before = self.prev[point_idx];
         let after = self.next[point_idx];
+        debug_assert!(before != UNSERVED);
+        debug_assert!(after != UNSERVED);
 
         // needs to be in for is_removed to work
         self.next[point_idx] = UNSERVED;
@@ -274,9 +305,14 @@ impl<'a> Sol<'a> {
     // }
 
     pub fn add_pair(&mut self, pickup_idx: usize, mov: &Move) {
+        debug_assert!(self.next[pickup_idx] == UNSERVED);
+        debug_assert!(self.prev[pickup_idx] == UNSERVED);
         let delivery_idx = self.data.pair_of(pickup_idx);
+        debug_assert!(self.next[delivery_idx] == UNSERVED);
+        debug_assert!(self.prev[delivery_idx] == UNSERVED);
 
         self.routes.remove(&mov.put_pickup_between.0);
+        self.routes.remove(&mov.put_pickup_between.1);
 
         self.link_unsafe(pickup_idx, &mov.put_pickup_between);
         self.link_unsafe(delivery_idx, &mov.put_delivery_between);
@@ -285,7 +321,6 @@ impl<'a> Sol<'a> {
         //     self.get_nodes_to_recalculate_from_after_insertion(pickup_idx, delivery_idx);
 
         let first = self.first[pickup_idx];
-
         self.routes.insert(first);
         self.fix_route(first);
         // self.fix_evals(before);
@@ -294,6 +329,8 @@ impl<'a> Sol<'a> {
 
     fn link_unsafe(&mut self, point_idx: usize, &Between(before, after): &Between) {
         debug_assert!(before != 0 || after != 0);
+        debug_assert!(self.prev[point_idx] == UNSERVED);
+        debug_assert!(self.next[point_idx] == UNSERVED);
         let first = if before == 0 {
             point_idx
         } else {
@@ -311,6 +348,33 @@ impl<'a> Sol<'a> {
         // in case before or after is the depot
         self.next[0] = 0;
         self.prev[0] = 0;
+    }
+
+    pub fn check_routes(&mut self) {
+        for &r in self.routes.iter() {
+
+            let mut z = r;
+
+            let mut route = vec![];
+            while z != 0 {
+                route.push(z);
+                z = self.next[z];
+            }
+
+            debug_assert!(self.prev[r] == 0);
+            debug_assert!(self.first[r] == r);
+
+            for (&p, &n) in route.iter().tuple_windows() {
+                debug_assert!(self.prev[n] == p);
+                debug_assert!(self.first[n] == r);
+                debug_assert!(self.next[p] == n);
+            }
+
+            debug_assert!(route.len() %2 == 0);
+
+            debug_assert!(self.next[*route.last().unwrap()] == 0);
+            println!("{route:?}");
+        }
     }
 }
 

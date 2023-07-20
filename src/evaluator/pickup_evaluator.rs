@@ -59,4 +59,8 @@ impl<'a> PickupInsertionEvaluator<'a> {
     pub fn after_pickup(&self) -> usize {
         self.after_pickup
     }
+
+    pub fn idx(&self) -> usize {
+        self.idx
+    }
 }

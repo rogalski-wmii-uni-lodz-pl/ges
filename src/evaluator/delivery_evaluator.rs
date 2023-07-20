@@ -11,6 +11,7 @@ pub struct DeliveryInsertionEvaluator<'a> {
     evaluator: Eval,
     put_pickup_between: Between,
     after_delivery_id: usize,
+    before_delivery_id: usize,
     last_in_route: usize,
 }
 
@@ -22,6 +23,7 @@ impl<'a> DeliveryInsertionEvaluator<'a> {
             evaluator: Eval::new(),
             put_pickup_between: Between(UNSERVED, UNSERVED),
             after_delivery_id: UNSERVED,
+            before_delivery_id: UNSERVED,
             last_in_route: UNSERVED,
         }
     }
@@ -30,6 +32,7 @@ impl<'a> DeliveryInsertionEvaluator<'a> {
         self.idx = idx;
         self.evaluator.reset_to(pickup_evaluator.evaluator());
         self.put_pickup_between = pickup_evaluator.get_between();
+        self.before_delivery_id = pickup_evaluator.idx();
         self.after_delivery_id = pickup_evaluator.after_pickup();
         self.last_in_route = self.after_delivery_id;
     }
@@ -39,10 +42,8 @@ impl<'a> DeliveryInsertionEvaluator<'a> {
     }
 
     pub fn check_next_node(&mut self, sol: &Sol, jump_forward: &[i32; PTS], mov: &mut Move) {
-        let before_delivery_id = self.data.pair_of(self.idx);
-
         if self.can_insert_delivery(sol) {
-            let put_delivery_between = Between(before_delivery_id, self.after_delivery_id);
+            let put_delivery_between = Between(self.before_delivery_id, self.after_delivery_id);
             mov.maybe_switch(&self.put_pickup_between, &put_delivery_between);
         }
 
@@ -59,6 +60,7 @@ impl<'a> DeliveryInsertionEvaluator<'a> {
     }
 
     pub fn advance_to_next_node(&mut self, sol: &Sol, jump_forward: &[i32; PTS]) {
+        self.before_delivery_id = self.after_delivery_id;
         self.after_delivery_id =
             (self.after_delivery_id as i32 + jump_forward[self.after_delivery_id]) as usize;
         self.evaluator.next(self.after_delivery_id, self.data);

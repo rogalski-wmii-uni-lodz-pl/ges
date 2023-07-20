@@ -1,3 +1,6 @@
+
+use rand::Rng;
+
 use crate::UNSERVED;
 
 #[derive(Debug, Copy, Clone)]
@@ -22,7 +25,8 @@ impl Move {
 
     pub fn maybe_switch(&mut self, put_pickup_between: &Between, put_delivery_between: &Between) {
         self.times += 1;
-        if (rand::random::<usize>() % self.times) == 0 {
+        let r = rand::thread_rng().gen_range(0..self.times);
+        if r == 0 {
             self.put_pickup_between = *put_pickup_between;
             self.put_delivery_between = *put_delivery_between;
         }
@@ -34,7 +38,8 @@ impl Move {
 
     pub fn pick(&mut self, other: &Self) {
         self.times += other.times;
-        if (rand::random::<usize>() % self.times) < other.times {
+        let r = rand::thread_rng().gen_range(0..self.times);
+        if r < other.times {
             self.put_pickup_between = other.put_pickup_between;
             self.put_delivery_between = other.put_delivery_between;
         }
