@@ -149,7 +149,7 @@ impl<'a> Sol<'a> {
     pub fn prn_heap(&self) {
         println!(
             "{} {:?}",
-            self.routes.iter().count(),
+            self.routes.iter().count() + 1,
             self.removed_idx[0..self.heap_size]
                 .iter()
                 .map(|&x| (x, self.removed_times[x]))

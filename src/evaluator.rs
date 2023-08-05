@@ -130,7 +130,12 @@ impl<'a> Evaluator<'a> {
                     self.remove_pair(sol, x)
                 }
 
-                self.pickup_evaluator.reset(sol, 0, self.pickup_idx, self.jump_forward[route_start]);
+                let mut start = route_start;
+                while start != self.jump_forward[start] {
+                    start = self.jump_forward[start];
+                }
+
+                self.pickup_evaluator.reset(sol, 0, self.pickup_idx, start);
 
                 while self.pickup_evaluator.can_continue() {
                     self.pickup_evaluator.insert_pickup(sol);

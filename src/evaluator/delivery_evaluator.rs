@@ -59,7 +59,10 @@ impl<'a> DeliveryInsertionEvaluator<'a> {
     pub fn advance_to_next_node(&mut self, sol: &Sol, jump_forward: &[usize; PTS]) {
         self.before_delivery_id = self.after_delivery_id;
         self.evaluator.next(self.after_delivery_id, self.data);
-        self.after_delivery_id = jump_forward[sol.next[self.after_delivery_id]];
+        self.after_delivery_id = sol.next[self.after_delivery_id];
+        while self.after_delivery_id != jump_forward[self.after_delivery_id] {
+            self.after_delivery_id = jump_forward[self.after_delivery_id];
+        }
     }
 
     pub fn check_rest_of_route(&mut self, sol: &Sol, jump_forward: &[usize; PTS], mov: &mut Move) {

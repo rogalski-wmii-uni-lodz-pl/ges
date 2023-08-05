@@ -39,7 +39,10 @@ impl<'a> PickupInsertionEvaluator<'a> {
 
     pub fn advance(&mut self, sol: &Sol, jump_forward: &[usize; PTS]) {
         self.before_pickup = self.after_pickup;
-        self.after_pickup = jump_forward[sol.next[self.after_pickup]]
+        self.after_pickup = sol.next[self.after_pickup];
+        while self.after_pickup != jump_forward[self.after_pickup] {
+            self.after_pickup = jump_forward[self.after_pickup];
+        }
     }
 
     pub fn insert_pickup(&mut self, sol: &Sol) {
