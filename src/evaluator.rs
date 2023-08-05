@@ -11,6 +11,8 @@ use self::{
 pub mod delivery_evaluator;
 pub mod pickup_evaluator;
 
+pub mod comb;
+
 pub struct Evaluator<'a> {
     data: &'a Data,
     pickup_idx: usize,
