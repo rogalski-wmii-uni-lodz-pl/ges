@@ -1,7 +1,7 @@
 
 use rand::Rng;
 
-use crate::UNSERVED;
+use crate::{UNSERVED, K_MAX};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Between(pub usize, pub usize);
@@ -11,6 +11,7 @@ pub struct Move {
     pub put_pickup_between: Between,
     pub put_delivery_between: Between,
     pub times: usize,
+    pub removed: [usize; K_MAX],
 }
 
 impl Move {
@@ -20,6 +21,7 @@ impl Move {
             put_pickup_between: unassigned,
             put_delivery_between: unassigned,
             times: 0,
+            removed: [0; K_MAX],
         }
     }
 
@@ -42,6 +44,7 @@ impl Move {
         if r < other.times {
             self.put_pickup_between = other.put_pickup_between;
             self.put_delivery_between = other.put_delivery_between;
+            self.removed = other.removed;
         }
     }
 }

@@ -12,7 +12,6 @@ pub struct DeliveryInsertionEvaluator<'a> {
     put_pickup_between: Between,
     after_delivery_id: usize,
     before_delivery_id: usize,
-    last_in_route: usize,
 }
 
 impl<'a> DeliveryInsertionEvaluator<'a> {
@@ -24,7 +23,6 @@ impl<'a> DeliveryInsertionEvaluator<'a> {
             put_pickup_between: Between(UNSERVED, UNSERVED),
             after_delivery_id: UNSERVED,
             before_delivery_id: UNSERVED,
-            last_in_route: UNSERVED,
         }
     }
 
@@ -34,14 +32,13 @@ impl<'a> DeliveryInsertionEvaluator<'a> {
         self.put_pickup_between = pickup_evaluator.get_between();
         self.before_delivery_id = pickup_evaluator.idx();
         self.after_delivery_id = pickup_evaluator.after_pickup();
-        self.last_in_route = self.after_delivery_id;
     }
 
     pub fn can_continue(&self) -> bool {
-        self.last_in_route != 0 && self.evaluator.is_feasible(self.data)
+        self.before_delivery_id != self.after_delivery_id && self.evaluator.is_feasible(self.data)
     }
 
-    pub fn check_next_node(&mut self, sol: &Sol, jump_forward: &[i32; PTS], mov: &mut Move) {
+    pub fn check_next_node(&mut self, sol: &Sol, jump_forward: &[usize; PTS], mov: &mut Move) {
         if self.can_insert_delivery(sol) {
             let put_delivery_between = Between(self.before_delivery_id, self.after_delivery_id);
             mov.maybe_switch(&self.put_pickup_between, &put_delivery_between);
@@ -59,16 +56,13 @@ impl<'a> DeliveryInsertionEvaluator<'a> {
         )
     }
 
-    pub fn advance_to_next_node(&mut self, sol: &Sol, jump_forward: &[i32; PTS]) {
+    pub fn advance_to_next_node(&mut self, sol: &Sol, jump_forward: &[usize; PTS]) {
         self.before_delivery_id = self.after_delivery_id;
-        self.after_delivery_id =
-            (self.after_delivery_id as i32 + jump_forward[self.after_delivery_id]) as usize;
         self.evaluator.next(self.after_delivery_id, self.data);
-        self.last_in_route = self.after_delivery_id;
-        self.after_delivery_id = sol.next[self.after_delivery_id];
+        self.after_delivery_id = jump_forward[sol.next[self.after_delivery_id]];
     }
 
-    pub fn check_rest_of_route(&mut self, sol: &Sol, jump_forward: &[i32; PTS], mov: &mut Move) {
+    pub fn check_rest_of_route(&mut self, sol: &Sol, jump_forward: &[usize; PTS], mov: &mut Move) {
         while self.can_continue() {
             self.check_next_node(sol, &jump_forward, mov);
         }

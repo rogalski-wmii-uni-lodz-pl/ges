@@ -22,25 +22,24 @@ impl<'a> PickupInsertionEvaluator<'a> {
         }
     }
 
-    pub fn reset(&mut self, sol: &Sol, idx: usize, start: usize) {
+    pub fn reset(&mut self, sol: &Sol, before_idx: usize, idx: usize, start: usize) {
         self.idx = idx;
         self.after_pickup = start;
-        self.before_pickup = sol.prev[self.after_pickup];
+        self.before_pickup = before_idx;
         self.evaluator.reset_to(&sol.evals[self.before_pickup]);
     }
 
     pub fn can_continue(&self) -> bool {
-        self.after_pickup != 0
+        self.after_pickup != self.before_pickup // both after_pickup and before_pickup is 0
     }
 
     pub fn pickup_insertion_is_feasible(&self) -> bool {
         self.evaluator.is_feasible(self.data)
     }
 
-    pub fn advance(&mut self, sol: &Sol, jump_forward: &[i32; PTS]) {
+    pub fn advance(&mut self, sol: &Sol, jump_forward: &[usize; PTS]) {
         self.before_pickup = self.after_pickup;
-        self.after_pickup =
-            (sol.next[self.after_pickup] as i32 + jump_forward[self.after_pickup]) as usize;
+        self.after_pickup = jump_forward[sol.next[self.after_pickup]]
     }
 
     pub fn insert_pickup(&mut self, sol: &Sol) {

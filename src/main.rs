@@ -53,27 +53,25 @@ fn main() {
 
     let mut ev = Evaluator::new(&data);
 
-    for i in 0.. {
+    for _ in 0.. {
+        println!("routes: {}", s.routes.iter().count());
         let r = *s.routes.iter().sorted().choose(&mut rand::thread_rng()).unwrap();
         // let v = s.routes.iter().collect_vec();
         println!("{r:?}");
+        s.eprn();
         s.remove_route(r);
         while let Some(top) = s.top() {
-            ev.reset(top);
-
-            let mut mov = Move::new();
-            for r in s.routes.iter() {
-                if let Some(mov2) = ev.check_add_to_route(&s, *r) {
-                    mov.pick(&mov2);
-                }
-            }
+            let mov = s.try_insert(top, &mut ev);
 
             if !mov.empty() {
-                println!("{i}: {:#?}", mov);
-                s.add_pair(top, &mov);
                 s.pop();
+                s.make_move(top, &mov);
+                debug_assert!(s.check_routes());
             } else {
                 s.inc();
+                for _ in 0..100 {
+                    s.perturb(&mut ev);
+                }
                 s.prn_heap();
             }
         }

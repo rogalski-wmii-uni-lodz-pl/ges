@@ -2,6 +2,7 @@ use std::{collections::HashSet, mem::replace};
 
 use data::{idx, Data, PTS};
 use eval::Eval;
+use evaluator::Evaluator;
 use itertools::Itertools;
 use mov::{Between, Move};
 use rand::Rng;
@@ -146,33 +147,88 @@ impl<'a> Sol<'a> {
     }
 
     pub fn prn_heap(&self) {
-        println!("{:?}", self.removed_idx[0..self.heap_size].iter().map(|&x| (x, self.removed_times[x])).collect_vec());
+        println!(
+            "{} {:?}",
+            self.routes.iter().count(),
+            self.removed_idx[0..self.heap_size]
+                .iter()
+                .map(|&x| (x, self.removed_times[x]))
+                .collect_vec()
+        );
     }
 
-    pub fn perturb(&mut self) {
-        let mut idx = rand::thread_rng().gen_range(0..self.data.points);
+    pub fn perturb(&mut self, ev: &mut Evaluator) {
+        let mut idx = rand::thread_rng().gen_range(1..self.data.points);
 
-        while self.is_removed(idx) {
+        while self.is_removed(idx) || self.data.pts[idx].delivery || self.only_pickup_in_route(idx)
+        {
             idx = rand::thread_rng().gen_range(0..self.data.points);
-
-
         }
+
+        self.remove_pair(idx);
+
+        let mov = self.try_insert(idx, ev);
+        debug_assert!(!mov.empty());
+        debug_assert!(mov.removed == [0; K_MAX]);
+        self.make_move(idx, &mov);
+    }
+
+    pub fn try_insert(&mut self, pickup: usize, ev: &mut Evaluator) -> Move {
+        ev.reset(pickup);
+
+        let mut mov = Move::new();
+        for r in self.routes.iter() {
+            if let Some(mov2) = ev.check_add_to_route(&self, *r) {
+                mov.pick(&mov2);
+            }
+        }
+
+        if mov.empty() {
+            for k in 1..=K_MAX {
+                for r in self.routes.iter() {
+                    if let Some(mov2) = ev.check_add_to_route_with_k_removed(&self, *r, k) {
+                        mov.pick(&mov2);
+                    }
+                }
+                if !mov.empty() {
+                    break;
+                }
+            }
+        }
+
+        mov
+    }
+
+    pub fn only_pickup_in_route(&self, pickup: usize) -> bool {
+        let delivery = self.data.pair_of(pickup);
+
+        (0, pickup, delivery, 0)
+            == (
+                self.prev[pickup],
+                self.prev[delivery],
+                self.next[pickup],
+                self.next[delivery],
+            )
+    }
+
+    pub fn push(&mut self, idx: usize) {
+        self.removed_idx[self.heap_size] = idx;
+        self.heap_size += 1;
     }
 
     pub fn remove_route(&mut self, first: usize) {
         debug_assert!(self.prev[first] == 0);
         self.routes.remove(&first);
-        let mut cur = first;
+        let mut idx = first;
         // let mut after_cur = self.next[cur];
-        while cur != 0 {
-            self.first[cur] = UNSERVED;
-            if !self.data.pts[cur].delivery {
-                self.removed_idx[self.heap_size] = cur;
-                self.removed_times[cur] += 1;
-                self.heap_size += 1;
+        while idx != 0 {
+            self.first[idx] = UNSERVED;
+            if !self.data.pts[idx].delivery {
+                self.push(idx);
+                self.removed_times[idx] += 1;
             }
-            self.prev[cur] = UNSERVED;
-            cur = replace(&mut self.next[cur], UNSERVED);
+            self.prev[idx] = UNSERVED;
+            idx = replace(&mut self.next[idx], UNSERVED);
             // TODO: evals?
         }
 
@@ -304,12 +360,18 @@ impl<'a> Sol<'a> {
     //     (earliest, latest)
     // }
 
-    pub fn add_pair(&mut self, pickup_idx: usize, mov: &Move) {
+    pub fn make_move(&mut self, pickup_idx: usize, mov: &Move) {
         debug_assert!(self.next[pickup_idx] == UNSERVED);
         debug_assert!(self.prev[pickup_idx] == UNSERVED);
         let delivery_idx = self.data.pair_of(pickup_idx);
         debug_assert!(self.next[delivery_idx] == UNSERVED);
         debug_assert!(self.prev[delivery_idx] == UNSERVED);
+
+        for &removed in mov.removed.iter().filter(|&&x| x != 0) {
+            self.remove_pair(removed); // TODO: inefficient, fix
+            self.push(removed);
+            self.inc();
+        }
 
         self.routes.remove(&mov.put_pickup_between.0);
         self.routes.remove(&mov.put_pickup_between.1);
@@ -329,6 +391,8 @@ impl<'a> Sol<'a> {
 
     fn link_unsafe(&mut self, point_idx: usize, &Between(before, after): &Between) {
         debug_assert!(before != 0 || after != 0);
+        debug_assert!(before == 0 || self.next[before] == after);
+        debug_assert!(after == 0 || self.prev[after] == before);
         debug_assert!(self.prev[point_idx] == UNSERVED);
         debug_assert!(self.next[point_idx] == UNSERVED);
         let first = if before == 0 {
@@ -350,9 +414,8 @@ impl<'a> Sol<'a> {
         self.prev[0] = 0;
     }
 
-    pub fn check_routes(&mut self) {
+    pub fn check_routes(&mut self) -> bool {
         for &r in self.routes.iter() {
-
             let mut z = r;
 
             let mut route = vec![];
@@ -370,10 +433,46 @@ impl<'a> Sol<'a> {
                 debug_assert!(self.next[p] == n);
             }
 
-            debug_assert!(route.len() %2 == 0);
+            debug_assert!(route.len() % 2 == 0);
 
             debug_assert!(self.next[*route.last().unwrap()] == 0);
             println!("{route:?}");
+        }
+
+        for i in 1..self.data.points {
+            debug_assert!(self.prev[i] != i);
+            debug_assert!(self.next[i] != i);
+            debug_assert!((self.next[i] == UNSERVED) == (self.prev[i] == UNSERVED));
+            debug_assert!(self.prev[i] == 0 || (self.prev[i] == UNSERVED && self.next[i] == UNSERVED) || self.next[self.prev[i]] == i);
+            debug_assert!(self.next[i] == 0 || (self.prev[i] == UNSERVED && self.next[i] == UNSERVED) || self.next[i] == UNSERVED || self.prev[self.next[i]] == i);
+        }
+        true
+    }
+
+    pub fn rs(&self) -> Vec<Vec<usize>> {
+        let mut routes = vec![];
+        for &first in self.routes.iter() {
+            let mut z = first;
+            let mut route = vec![];
+            while z != 0 {
+                route.push(z);
+                z = self.next[z];
+            }
+            routes.push(route);
+        }
+
+        routes
+    }
+
+    pub fn eprn(&self) {
+        let rs = self.rs();
+
+        for (i, r) in rs.iter().sorted().enumerate() {
+            eprint!("Route {i} :");
+            for x in r {
+                eprint!(" {x}");
+            }
+            eprintln!("");
         }
     }
 }
