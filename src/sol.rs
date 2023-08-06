@@ -142,46 +142,46 @@ impl<'a> Sol<'a> {
 
         self.remove_pair(idx);
 
-        let mov = self.try_insert(idx, ev);
-        debug_assert!(!mov.empty());
-        debug_assert!(mov.removed == [0; K_MAX]);
-        self.make_move(idx, &mov);
+        let mov = self.try_insert_1(idx, ev);
+        debug_assert!(mov.is_some());
+        // debug_assert!(mov.unwrap().removed == [0; K_MAX]);
+        self.make_move(idx, &mov.unwrap());
     }
 
-    pub fn try_insert(&self, pickup: usize, ev: &mut Evaluator) -> Move {
+    pub fn try_insert_1(&self, pickup: usize, ev: &mut Evaluator) -> Option<Move> {
         ev.reset(pickup);
 
-        // let mut mov = Move::new();
-        // for r in self.routes.iter() {
-        //     if let Some(mov2) = ev.check_add_to_route(&self, *r) {
-        //         mov.pick(&mov2);
-        //     }
-        // }
-
-        let mov = self
-            .routes
+        self.routes
             .iter()
             .filter_map(|&route| ev.check_add_to_route(&self, route))
-            .fold(Move::new(), Move::pick2);
+            .reduce(Move::pick2)
+    }
 
-        if !mov.empty() {
-            mov
-        } else {
-            for k in 1..=K_MAX {
 
-                let mov = self
-                    .routes
-                    .iter()
-                    .filter_map(|&route| ev.check_add_to_route_with_k_removed(&self, route, k))
-                    .fold(Move::new(), Move::pick2);
+    pub fn try_insert_k(&self, pickup: usize, ev: &mut Evaluator) -> Option<Move> {
+        ev.reset(pickup);
 
-                if !mov.empty() {
-                    return mov;
-                }
+        for k in 1..=K_MAX {
+            let mov = self
+                .routes
+                .iter()
+                .filter_map(|&route| ev.check_add_to_route_with_k_removed(&self, route, k))
+                .reduce(Move::pick2);
+
+            if mov.is_some() {
+                return mov
             }
-
-            Move::new()
         }
+
+        None
+    }
+
+    pub fn try_insert(&self, pickup: usize, ev: &mut Evaluator) -> Option<Move> {
+        ev.reset(pickup);
+
+        let mov = self.try_insert_1(pickup, ev);
+
+        mov.or_else(|| self.try_insert_k(pickup, ev))
     }
 
     pub fn only_pickup_in_route(&self, pickup: usize) -> bool {

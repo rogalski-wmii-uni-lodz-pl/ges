@@ -64,9 +64,9 @@ fn main() {
         s.eprn();
         s.remove_route(r);
         while let Some(top) = s.top() {
-            let mov = s.try_insert(top, &mut ev);
+            let maybe = s.try_insert(top, &mut ev);
 
-            if !mov.empty() {
+            if let Some(mov) = maybe {
                 s.pop();
                 s.make_move(top, &mov);
                 debug_assert!(s.check_routes());
