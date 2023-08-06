@@ -11,7 +11,7 @@ pub mod mov;
 pub mod sol;
 
 const UNSERVED: usize = usize::MAX;
-const K_MAX: usize = 10;
+const K_MAX: usize = 3;
 
 // pub struct Removed {
 //     pub pickup: usize,
