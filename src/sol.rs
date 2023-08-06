@@ -151,27 +151,37 @@ impl<'a> Sol<'a> {
     pub fn try_insert(&self, pickup: usize, ev: &mut Evaluator) -> Move {
         ev.reset(pickup);
 
-        let mut mov = Move::new();
-        for r in self.routes.iter() {
-            if let Some(mov2) = ev.check_add_to_route(&self, *r) {
-                mov.pick(&mov2);
-            }
-        }
+        // let mut mov = Move::new();
+        // for r in self.routes.iter() {
+        //     if let Some(mov2) = ev.check_add_to_route(&self, *r) {
+        //         mov.pick(&mov2);
+        //     }
+        // }
 
-        if mov.empty() {
+        let mov = self
+            .routes
+            .iter()
+            .filter_map(|&route| ev.check_add_to_route(&self, route))
+            .fold(Move::new(), Move::pick2);
+
+        if !mov.empty() {
+            mov
+        } else {
             for k in 1..=K_MAX {
-                for r in self.routes.iter() {
-                    if let Some(mov2) = ev.check_add_to_route_with_k_removed(&self, *r, k) {
-                        mov.pick(&mov2);
-                    }
-                }
+
+                let mov = self
+                    .routes
+                    .iter()
+                    .filter_map(|&route| ev.check_add_to_route_with_k_removed(&self, route, k))
+                    .fold(Move::new(), Move::pick2);
+
                 if !mov.empty() {
-                    break;
+                    return mov;
                 }
             }
-        }
 
-        mov
+            Move::new()
+        }
     }
 
     pub fn only_pickup_in_route(&self, pickup: usize) -> bool {
