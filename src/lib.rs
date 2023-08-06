@@ -31,35 +31,49 @@ impl<'a> Ges<'a> {
         }
     }
 
-    pub fn ges(&mut self, s: &mut Sol) {
-    for _ in 0.. {
-        println!("routes: {}", s.routes.iter().count());
-        let r = *s
-            .routes
-            .iter()
-            .sorted()
-            .choose(&mut rand::thread_rng())
-            .unwrap();
-        // let v = s.routes.iter().collect_vec();
-        println!("{r:?}");
-        s.eprn();
-        s.remove_route(r);
-        while let Some(top) = s.top() {
-            let maybe = s.try_insert(top, &mut self.ev);
+    pub fn ges(&mut self, solution: &mut Sol) {
+        loop {
+            println!("routes: {}", solution.routes.iter().count());
+            let random_route_first = *solution
+                .routes
+                .iter()
+                .sorted()
+                .choose(&mut rand::thread_rng())
+                .unwrap();
+            // let v = s.routes.iter().collect_vec();
+            println!("{random_route_first:?}");
+            solution.eprn();
+            solution.remove_route(random_route_first);
 
-            if let Some(mov) = maybe {
-                s.pop();
-                s.make_move(top, &mov);
-                debug_assert!(s.check_routes());
-            } else {
-                s.inc();
-                for _ in 0..50 {
-                    s.perturb(&mut self.ev);
+            let mut times: u64 = 0;
+            let mut max = solution.heap_size;
+            let mut min = solution.heap_size;
+            while let Some(top) = solution.top() {
+                times += 1;
+                let maybe = solution.try_insert(top, &mut self.ev);
+
+                if let Some(mov) = maybe {
+                    max = solution.heap_size.max(max);
+                    min = solution.heap_size.min(min);
+                    solution.pop();
+                    solution.make_move(top, &mov);
+                    debug_assert!(solution.check_routes());
+                } else {
+                    solution.inc();
+                    for _ in 0..50 {
+                        solution.perturb(&mut self.ev);
+                    }
                 }
-                s.prn_heap();
+
+                if times % 10000 == 0 {
+                    solution.eprn();
+                    print!("{times} {min} {max}: ");
+                    solution.prn_heap();
+                }
             }
+
+            println!("after {times}");
         }
-    }
     }
 }
 
