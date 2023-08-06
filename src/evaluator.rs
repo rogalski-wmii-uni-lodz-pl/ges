@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::data::{Data, PTS};
 use crate::mov::Move;
-use crate::{Sol, K_MAX, UNSERVED};
+use crate::{sol::Sol, K_MAX, UNSERVED};
 
 use self::{
     delivery_evaluator::DeliveryInsertionEvaluator, pickup_evaluator::PickupInsertionEvaluator,
@@ -108,7 +108,12 @@ impl<'a> Evaluator<'a> {
             .check_rest_of_route(sol, &self.jump_forward, mov);
     }
 
-    pub fn check_add_to_route_with_k_removed(&mut self, sol: &Sol, route_start: usize, k: usize) -> Option<Move> {
+    pub fn check_add_to_route_with_k_removed(
+        &mut self,
+        sol: &Sol,
+        route_start: usize,
+        k: usize,
+    ) -> Option<Move> {
         let mut mov = Move::new();
 
         let mut route_pickups = vec![];

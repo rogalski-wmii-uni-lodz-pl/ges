@@ -1,7 +1,7 @@
 use crate::data::{Data, PTS};
 use crate::eval::Eval;
 use crate::mov::{Between, Move};
-use crate::{Sol, UNSERVED};
+use crate::{sol::Sol, UNSERVED};
 
 use super::pickup_evaluator::PickupInsertionEvaluator;
 

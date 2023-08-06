@@ -1,10 +1,9 @@
 use std::path::Path;
 
-use ges::{data::Data, evaluator::Evaluator, mov::Move};
+use ges::{data::Data, evaluator::Evaluator};
 
 use itertools::Itertools;
 use rand::{self, seq::IteratorRandom};
-
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -38,7 +37,7 @@ fn main() {
     //     vec![0, 113, 155, 78, 175, 13, 43, 2, 90, 67, 39, 107, 212, 0],
     // ];
 
-    let mut s = ges::Sol::new(&data);
+    let mut s = ges::sol::Sol::new(&data);
     // println!("{:#?}", data.points);
     for i in 1..data.points {
         let p = data.pts[i];
@@ -48,14 +47,18 @@ fn main() {
         }
     }
 
-
     // let mut r = StdRng::seed_from_u64(11);
 
     let mut ev = Evaluator::new(&data);
 
     for _ in 0.. {
         println!("routes: {}", s.routes.iter().count());
-        let r = *s.routes.iter().sorted().choose(&mut rand::thread_rng()).unwrap();
+        let r = *s
+            .routes
+            .iter()
+            .sorted()
+            .choose(&mut rand::thread_rng())
+            .unwrap();
         // let v = s.routes.iter().collect_vec();
         println!("{r:?}");
         s.eprn();
@@ -76,5 +79,4 @@ fn main() {
             }
         }
     }
-
 }

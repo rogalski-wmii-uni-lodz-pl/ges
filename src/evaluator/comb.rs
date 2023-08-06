@@ -2,8 +2,8 @@
 
 use itertools::Itertools;
 
-use crate::{UNSERVED, K_MAX, Sol};
 use crate::data::PTS;
+use crate::{K_MAX, UNSERVED};
 
 pub struct Comb {
     pub route: [usize; PTS],

@@ -1,7 +1,6 @@
-
 use rand::Rng;
 
-use crate::{UNSERVED, K_MAX};
+use crate::{K_MAX, UNSERVED};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Between(pub usize, pub usize);
