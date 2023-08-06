@@ -437,8 +437,13 @@ impl<'a> Sol<'a> {
     pub fn eprn(&self) {
         let rs = self.rs();
 
+        eprintln!("Instance name:");
+        eprintln!("Authors:");
+        eprintln!("Reference:");
+        eprintln!("Date:");
+        eprintln!("Solution :");
         for (i, r) in rs.iter().sorted().enumerate() {
-            eprint!("Route {i} :");
+            eprint!("Route {} :", i + 1);
             for x in r {
                 eprint!(" {x}");
             }
