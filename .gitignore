@@ -2,3 +2,6 @@
 /Cargo.lock
 
 **/.gdb_history
+
+**/*.svg
+**/*perf*
