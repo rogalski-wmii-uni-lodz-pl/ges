@@ -44,6 +44,16 @@ impl<'a> Sol<'a> {
         }
     }
 
+    pub fn initialize(&mut self) {
+        for i in 1..self.data.points {
+            let p = self.data.pts[i];
+            if !p.delivery {
+                let vec = vec![0, i, p.pair, 0];
+                self.add_route(&vec)
+            }
+        }
+    }
+
     fn fix_evals(&mut self, first: usize) {
         let mut ev = Eval::new();
         let prev = self.prev[first];
@@ -157,7 +167,6 @@ impl<'a> Sol<'a> {
             .reduce(Move::pick2)
     }
 
-
     pub fn try_insert_k(&self, pickup: usize, ev: &mut Evaluator) -> Option<Move> {
         ev.reset(pickup);
 
@@ -169,7 +178,7 @@ impl<'a> Sol<'a> {
                 .reduce(Move::pick2);
 
             if mov.is_some() {
-                return mov
+                return mov;
             }
         }
 
@@ -435,5 +444,27 @@ impl<'a> Sol<'a> {
             }
             eprintln!("");
         }
+    }
+
+    pub fn route_iter(&self, start: usize) -> RouteIterator {
+        RouteIterator {
+            solution: &self,
+            cur: start,
+        }
+    }
+}
+
+pub struct RouteIterator<'a> {
+    solution: &'a Sol<'a>,
+    cur: usize,
+}
+
+impl<'a> Iterator for RouteIterator<'a> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cur = self.solution.next[self.cur];
+
+        (self.solution.next[self.cur] != 0).then_some(self.cur)
     }
 }
