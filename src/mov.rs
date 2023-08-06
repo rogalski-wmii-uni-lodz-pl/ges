@@ -7,6 +7,7 @@ pub struct Between(pub usize, pub usize);
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Move {
+    pub pickup: usize,
     pub put_pickup_between: Between,
     pub put_delivery_between: Between,
     pub times: usize,
@@ -14,9 +15,10 @@ pub struct Move {
 }
 
 impl Move {
-    pub fn new() -> Self {
+    pub fn new(pickup: usize) -> Self {
         let unassigned = Between(UNSERVED, UNSERVED);
         Self {
+            pickup,
             put_pickup_between: unassigned,
             put_delivery_between: unassigned,
             times: 0,
@@ -33,7 +35,7 @@ impl Move {
         }
     }
 
-    pub fn empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         return self.times == 0;
     }
 
@@ -57,51 +59,71 @@ impl Move {
     }
 }
 
+pub struct Swap {
+    pub a: Move,
+    pub b: Move,
+}
+
+impl Swap {
+    pub fn new(a_pickup: usize, b_pickup: usize) -> Self {
+        Self {
+            a: Move::new(a_pickup),
+            b: Move::new(b_pickup),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.a.is_empty()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
     fn empty() {
-        let m = Move::new();
+        let m = Move::new(1);
 
-        assert!(m.empty());
+        assert!(m.is_empty());
 
         let ne = Move {
+            pickup: 1,
             times: 1,
             put_pickup_between: Between(1, 2),
             put_delivery_between: Between(1, 2),
             removed: [0; K_MAX],
         };
 
-        assert!(!ne.empty());
+        assert!(!ne.is_empty());
     }
 
     #[test]
     fn empty_switching() {
         let other = Move {
+            pickup: 1,
             times: 1,
             put_pickup_between: Between(3, 4),
             put_delivery_between: Between(5, 6),
             removed: [0; K_MAX],
         };
 
-        let mut m = Move::new();
+        let mut m = Move::new(1);
         m.maybe_switch(&other.put_pickup_between, &other.put_delivery_between);
         assert_eq!(m, other);
 
-        let mut m = Move::new();
+        let mut m = Move::new(1);
         m.pick(&other);
         assert_eq!(m, other);
 
-        let m = Move::new().pick2(other);
+        let m = Move::new(1).pick2(other);
         assert_eq!(m, other);
     }
-
 
     #[test]
     fn non_empty_switching() {
         let mut a = Move {
+            pickup: 1,
             times: 5,
             put_pickup_between: Between(3, 4),
             put_delivery_between: Between(5, 6),
@@ -109,6 +131,7 @@ mod test {
         };
 
         let b = Move {
+            pickup: 1,
             times: 10,
             put_pickup_between: Between(5, 6),
             put_delivery_between: Between(7, 8),

@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::data::{idx, Data, PTS};
 use crate::eval::Eval;
 use crate::evaluator::Evaluator;
-use crate::mov::{Between, Move};
+use crate::mov::{Between, Move, Swap};
 use crate::{K_MAX, UNSERVED};
 
 pub struct Sol<'a> {
@@ -143,19 +143,58 @@ impl<'a> Sol<'a> {
     }
 
     pub fn perturb(&mut self, ev: &mut Evaluator) {
-        let mut idx = rand::thread_rng().gen_range(1..self.data.points);
+        if rand::thread_rng().gen_bool(0.5) {
+            self.random_move(ev);
+        } else {
+            self.random_swap(ev);
+            // self.random_move(ev);
+        }
+    }
+
+    fn random_swap(&mut self, ev: &mut Evaluator<'_>) {
+        let mut a_pickup = self.random_pickup();
+        let mut b_pickup = self.random_pickup();
+
+        while b_pickup == a_pickup || self.in_same_route(a_pickup, b_pickup) {
+            a_pickup = self.random_pickup();
+            b_pickup = self.random_pickup();
+        }
+
+        let maybe = ev.check_swap(self, a_pickup, b_pickup);
+
+        if let Some(swap) = maybe {
+            self.make_swap(&swap);
+        }
+    }
+
+    fn in_same_route(&mut self, a_pickup: usize, b_pickup: usize) -> bool {
+        self.first[a_pickup] == self.first[b_pickup]
+    }
+
+    fn random_move(&mut self, ev: &mut Evaluator<'_>) {
+        let pickup = self.random_pickup();
+
+        self.remove_pair(pickup);
+
+        let mov = self.try_insert_1(pickup, ev);
+        debug_assert!(mov.is_some());
+        // debug_assert!(mov.unwrap().removed == [0; K_MAX]);
+        self.make_move(&mov.unwrap());
+    }
+
+    fn random_pickup(&mut self) -> usize {
+        let mut idx = self.random_idx();
 
         while self.is_removed(idx) || self.data.pts[idx].delivery || self.only_pickup_in_route(idx)
         {
-            idx = rand::thread_rng().gen_range(0..self.data.points);
+            idx = self.random_idx();
         }
 
-        self.remove_pair(idx);
+        idx
+    }
 
-        let mov = self.try_insert_1(idx, ev);
-        debug_assert!(mov.is_some());
-        // debug_assert!(mov.unwrap().removed == [0; K_MAX]);
-        self.make_move(idx, &mov.unwrap());
+    fn random_idx(&mut self) -> usize {
+        rand::thread_rng().gen_range(1..self.data.points)
     }
 
     pub fn try_insert_1(&self, pickup: usize, ev: &mut Evaluator) -> Option<Move> {
@@ -325,8 +364,46 @@ impl<'a> Sol<'a> {
 
     //     (earliest, latest)
     // }
+    //
+    pub fn make_swap(&mut self, swap: &Swap) {
+        let a_pickup_idx = swap.a.pickup;
+        debug_assert!(self.next[a_pickup_idx] != UNSERVED);
+        debug_assert!(self.prev[a_pickup_idx] != UNSERVED);
+        let a_delivery_idx = self.data.pair_of(a_pickup_idx);
+        debug_assert!(self.next[a_delivery_idx] != UNSERVED);
+        debug_assert!(self.prev[a_delivery_idx] != UNSERVED);
 
-    pub fn make_move(&mut self, pickup_idx: usize, mov: &Move) {
+        let b_pickup_idx = swap.b.pickup;
+        debug_assert!(self.next[b_pickup_idx] != UNSERVED);
+        debug_assert!(self.prev[b_pickup_idx] != UNSERVED);
+        let b_delivery_idx = self.data.pair_of(b_pickup_idx);
+        debug_assert!(self.next[b_delivery_idx] != UNSERVED);
+        debug_assert!(self.prev[b_delivery_idx] != UNSERVED);
+
+        self.remove_pair(a_pickup_idx); // TODO: inefficient, fix
+        self.remove_pair(b_pickup_idx); // TODO: inefficient, fix
+
+        self.routes.remove(&swap.a.put_pickup_between.0);
+        self.routes.remove(&swap.a.put_pickup_between.1);
+        self.routes.remove(&swap.b.put_pickup_between.0);
+        self.routes.remove(&swap.b.put_pickup_between.1);
+
+        self.link_unsafe(a_pickup_idx, &swap.a.put_pickup_between);
+        self.link_unsafe(a_delivery_idx, &swap.a.put_delivery_between);
+        self.link_unsafe(b_pickup_idx, &swap.b.put_pickup_between);
+        self.link_unsafe(b_delivery_idx, &swap.b.put_delivery_between);
+
+        let first = self.first[a_pickup_idx];
+        self.routes.insert(first);
+        self.fix_route(first);
+
+        let first = self.first[b_pickup_idx];
+        self.routes.insert(first);
+        self.fix_route(first);
+    }
+
+    pub fn make_move(&mut self, mov: &Move) {
+        let pickup_idx = mov.pickup;
         debug_assert!(self.next[pickup_idx] == UNSERVED);
         debug_assert!(self.prev[pickup_idx] == UNSERVED);
         let delivery_idx = self.data.pair_of(pickup_idx);

@@ -56,7 +56,7 @@ impl<'a> Ges<'a> {
                     max = solution.heap_size.max(max);
                     min = solution.heap_size.min(min);
                     solution.pop();
-                    solution.make_move(top, &mov);
+                    solution.make_move(&mov);
                     debug_assert!(solution.check_routes());
                 } else {
                     solution.inc();

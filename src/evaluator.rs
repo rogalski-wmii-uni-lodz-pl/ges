@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 use crate::data::{Data, PTS};
-use crate::mov::Move;
+use crate::mov::{Move, Swap};
 use crate::{sol::Sol, K_MAX, UNSERVED};
 use std::ops::Not;
 
@@ -84,7 +84,7 @@ impl<'a> Evaluator<'a> {
     }
 
     pub fn check_add_to_route(&mut self, sol: &Sol, start: usize) -> Option<Move> {
-        let mut mov = Move::new();
+        let mut mov = Move::new(self.pickup_idx);
         self.pickup_evaluator
             .reset(sol, sol.prev[start], self.pickup_idx, start);
 
@@ -98,7 +98,7 @@ impl<'a> Evaluator<'a> {
             self.pickup_evaluator.advance(sol, &self.jump_forward);
         }
 
-        mov.empty().not().then_some(mov)
+        mov.is_empty().not().then_some(mov)
     }
 
     fn check_delivery_insertions(&mut self, sol: &Sol, mov: &mut Move) {
@@ -117,7 +117,7 @@ impl<'a> Evaluator<'a> {
     ) -> Option<Move> {
         let route_pickups = self.route_pickups(route_start, sol);
 
-        let mut mov = Move::new();
+        let mut mov = Move::new(self.pickup_idx);
         let pickup_removed_times = sol.removed_times[self.pickup_idx];
 
         for comb in route_pickups.iter().combinations(k) {
@@ -132,21 +132,52 @@ impl<'a> Evaluator<'a> {
                 let mut m = self.check_route(route_start, sol);
                 self.unremove_all(&comb);
 
-                if !m.empty() {
+                if !m.is_empty() {
                     m.removed[..k].copy_from_slice(&comb);
                     mov.pick(&m)
                 }
             }
-            if !mov.empty() {
+            if !mov.is_empty() {
                 break;
             }
         }
 
-        mov.empty().not().then_some(mov)
+        mov.is_empty().not().then_some(mov)
+    }
+
+    pub fn check_swap(&mut self, sol: &Sol, a_pickup: usize, b_pickup: usize) -> Option<Swap> {
+        debug_assert!(a_pickup != b_pickup);
+        debug_assert!(!sol.data.pts[a_pickup].delivery);
+        debug_assert!(!sol.data.pts[b_pickup].delivery);
+
+        let a_route = sol.first[a_pickup];
+        let b_route = sol.first[b_pickup];
+        debug_assert!(a_route != b_route);
+        let comb = vec![a_pickup, b_pickup];
+
+        self.reset(a_pickup);
+        self.remove_all(&comb, sol);
+        let a = self.check_route(a_route, sol);
+
+        let mut s = Swap::new(a_pickup, b_pickup);
+
+        if !a.is_empty() {
+            self.pickup_idx = b_pickup;
+            self.delivery_idx = self.data.pair_of(b_pickup);
+            let b = self.check_route(b_route, sol);
+
+            if !b.is_empty() {
+                s.a = a;
+                s.b = b;
+            }
+        }
+        self.unremove_all(&comb);
+
+        s.is_empty().not().then_some(s)
     }
 
     fn check_route(&mut self, route_start: usize, sol: &Sol<'_>) -> Move {
-        let mut mov = Move::new();
+        let mut mov = Move::new(self.pickup_idx);
         let mut start = route_start;
         while start != self.jump_forward[start] {
             start = self.jump_forward[start];
@@ -167,13 +198,13 @@ impl<'a> Evaluator<'a> {
         mov
     }
 
-    fn unremove_all(&mut self, comb: &Vec<usize>) {
+    pub fn unremove_all(&mut self, comb: &Vec<usize>) {
         for &x in comb.iter() {
             self.unremove_pair(x)
         }
     }
 
-    fn remove_all(&mut self, comb: &Vec<usize>, sol: &Sol) {
+    pub fn remove_all(&mut self, comb: &Vec<usize>, sol: &Sol) {
         for &x in comb.iter() {
             self.remove_pair(sol, x)
         }
