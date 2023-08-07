@@ -40,6 +40,7 @@ pub struct Comb2 {
     pub route_idx: [usize; PTS],
     pub len: usize,
     pub iters: [usize; K_MAX + 1],
+    pub removed: [usize; K_MAX],
     pub k: usize,
 }
 
@@ -53,6 +54,7 @@ impl Comb2 {
             route_idx: [UNSERVED; PTS],
             len: 0,
             iters: [UNSERVED; K_MAX + 1],
+            removed: [UNSERVED; K_MAX],
             k: 0,
         }
     }
@@ -68,7 +70,7 @@ impl Comb2 {
                 cur += 1;
             }
 
-            self.iters[i] = cur;
+            self.set_iters_and_removed(i, cur);
             cur += 1;
         }
 
@@ -76,6 +78,11 @@ impl Comb2 {
         for i in (k + 1)..=K_MAX {
             self.iters[i] = UNSERVED
         }
+    }
+
+    fn set_iters_and_removed(&mut self, it: usize, val: usize) {
+        self.iters[it] = val;
+        self.removed[it] = self.route[val].idx;
     }
 
     fn fill_pair_info(&mut self, route_start: usize, sol: &Sol<'_>) {
@@ -132,12 +139,12 @@ impl Comb2 {
         for i in (0..self.k).rev() {
             let next = self.next_pickup_idx(self.iters[i]);
             if next != self.iters[i + 1] {
-                self.iters[i] = next;
+                self.set_iters_and_removed(i, next);
 
                 let mut next2 = self.iters[i];
                 for it in i + 1..self.k {
                     next2 = self.next_pickup_idx(next2);
-                    self.iters[it] = next2;
+                    self.set_iters_and_removed(it, next2);
                 }
 
                 return true;
@@ -157,12 +164,12 @@ impl Comb2 {
         idx
     }
 
-    pub fn iter_removed_idxs(&self) -> std::slice::Iter<'_, usize> {
-        self.iters[0..self.k].iter()
-    }
-
     pub fn removed_idxs(&self) -> &[usize] {
         &self.iters[0..self.k]
+    }
+
+    pub fn removed(&self) -> &[usize] {
+        &self.removed[0..self.k]
     }
 }
 
@@ -183,7 +190,6 @@ impl<'a> Iterator for Comb2Iter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let res = (self.cur < self.comb.len).then_some(self.comb.route[self.cur].idx);
         self.cur += 1;
-        println!("{}", self.cur);
         while self.cur < self.comb.len && self.comb.in_iter(&self.cur) {
             self.cur += 1;
         }
@@ -501,10 +507,13 @@ mod test {
             assert!(c.next_comb());
             assert_eq!(c.r(), *next);
             assert_eq!(c.into_iter().collect_vec(), *next);
-            let removed2 = c.removed_idxs().iter().map(|x| c.route[*x].idx).collect_vec();
+            assert_eq!(c.removed(), *removed);
+            let removed2 = c
+                .removed_idxs()
+                .iter()
+                .map(|x| c.route[*x].idx)
+                .collect_vec();
             assert_eq!(removed2, *removed);
-            let removed3 = c.iter_removed_idxs().map(|x| c.route[*x].idx).collect_vec();
-            assert_eq!(removed3, *removed);
         }
         assert!(!c.next_comb());
     }

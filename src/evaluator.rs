@@ -5,7 +5,7 @@ use crate::mov::{Move, Swap};
 use crate::{sol::Sol, K_MAX, UNSERVED};
 use std::ops::Not;
 
-use self::comb::Comb;
+use self::comb::{Comb, Comb2, Comb2Iter};
 use self::{
     delivery_evaluator::DeliveryInsertionEvaluator, pickup_evaluator::PickupInsertionEvaluator,
 };
@@ -125,7 +125,6 @@ impl<'a> Evaluator<'a> {
             let mut cc = Comb::new();
             cc.reset(&route_pickups, k);
 
-
             for comb in route_pickups.iter().combinations(k) {
                 let comb = comb.iter().copied().copied().collect_vec();
 
@@ -143,9 +142,9 @@ impl<'a> Evaluator<'a> {
                         mov.pick(&m)
                     }
                 }
-                if !mov.is_empty() {
-                    break;
-                }
+                // if !mov.is_empty() {
+                //     break;
+                // }
             }
 
         }
@@ -207,17 +206,66 @@ impl<'a> Evaluator<'a> {
         mov
     }
 
-    // fn check_route2<T: Iterator<Item = usize>>(&mut self, iter: &mut T, sol: &Sol) -> Move {
-    //     let mut iter = iter.tuple_windows().peekable();
+    pub fn check_add_to_route_with_k_removed2(
+        &mut self,
+        sol: &Sol,
+        route_start: usize,
+        k: usize,
+    ) -> Option<Move> {
+        let mut mov = Move::new(self.pickup_idx);
 
-    //     let fst = iter.peek();
-    //         println!("{}");
+        let route_pickups = self.route_pickups(route_start, sol);
+        if k < route_pickups.len() {
+            let pickup_removed_times = sol.removed_times[self.pickup_idx];
 
-    //     for (p, n) in iter {
-    //         println!("{p} -> {n}");
-    //     }
-    //     Move::new(self.pickup_idx)
-    // }
+            let mut cc = Comb2::new();
+            cc.from_route(sol, route_start, k);
+
+            let mut ok = true;
+
+            while ok {
+                let comb_total_removed_times: u64 = cc.removed().iter().map(|&x| sol.removed_times[x]).sum();
+                let comb_has_lower_removal_score = comb_total_removed_times < pickup_removed_times;
+                if comb_has_lower_removal_score {
+                    let mut m = self.check_route2(cc.into_iter(), sol);
+
+                    if !m.is_empty() {
+                        m.removed[..k].copy_from_slice(cc.removed());
+                        mov.pick(&m)
+                    }
+                }
+                // if !mov.is_empty() {
+                //     break;
+                // }
+
+                ok = cc.next_comb();
+            }
+        }
+
+
+        mov.is_empty().not().then_some(mov)
+    }
+
+    fn check_route2(&mut self, ci: impl Iterator<Item = usize>, sol: &Sol<'_>) -> Move {
+        let mut it = ci.peekable();
+        let mut mov = Move::new(self.pickup_idx);
+        let start = *(it.peek().unwrap());
+
+        self.pickup_evaluator.reset(sol, 0, self.pickup_idx, start);
+
+        while self.pickup_evaluator.can_continue() {
+            self.pickup_evaluator.insert_pickup(sol);
+
+            if self.pickup_evaluator.pickup_insertion_is_feasible() {
+                self.check_delivery_insertions(sol, &mut mov);
+            }
+
+            self.pickup_evaluator.advance(sol, &self.jump_forward);
+        }
+
+        mov
+    }
+
 
     pub fn unremove_all(&mut self, comb: &Vec<usize>) {
         for &x in comb.iter() {
