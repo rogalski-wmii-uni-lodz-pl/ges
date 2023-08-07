@@ -117,36 +117,30 @@ impl<'a> Evaluator<'a> {
         route_start: usize,
         k: usize,
     ) -> Option<Move> {
-        let mut mov = Move::new(self.pickup_idx);
-
         let route_pickups = self.route_pickups(route_start, sol);
-        if k < route_pickups.len() {
-            let pickup_removed_times = sol.removed_times[self.pickup_idx];
 
-            let mut cc = Comb::new();
-            cc.reset(&route_pickups, k);
+        let mut mov = Move::new(self.pickup_idx);
+        let pickup_removed_times = sol.removed_times[self.pickup_idx];
 
-            for comb in route_pickups.iter().combinations(k) {
-                let comb = comb.iter().copied().copied().collect_vec();
+        for comb in route_pickups.iter().combinations(k) {
+            let comb = comb.iter().copied().copied().collect_vec();
 
-                // let not_whole_route = k != route_pickups.len();
+            let not_whole_route = k != route_pickups.len();
 
-                let comb_total_removed_times: u64 =
-                    comb.iter().map(|&x| sol.removed_times[x]).sum();
-                let comb_has_lower_removal_score = comb_total_removed_times < pickup_removed_times;
-                if comb_has_lower_removal_score {
-                    self.remove_all(&comb, sol);
-                    let mut m = self.check_route(route_start, sol);
-                    self.unremove_all(&comb);
+            let comb_total_removed_times: u64 = comb.iter().map(|&x| sol.removed_times[x]).sum();
+            let comb_has_lower_removal_score = comb_total_removed_times < pickup_removed_times;
+            if not_whole_route && comb_has_lower_removal_score {
+                self.remove_all(&comb, sol);
+                let mut m = self.check_route(route_start, sol);
+                self.unremove_all(&comb);
 
-                    if !m.is_empty() {
-                        m.removed[..k].copy_from_slice(&comb);
-                        mov.pick(&m)
-                    }
+                if !m.is_empty() {
+                    m.removed[..k].copy_from_slice(&comb);
+                    mov.pick(&m)
                 }
-                // if !mov.is_empty() {
-                //     break;
-                // }
+            }
+            if !mov.is_empty() {
+                break;
             }
         }
 
