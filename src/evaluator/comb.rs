@@ -173,6 +173,7 @@ impl Comb2 {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Comb2Iter<'a> {
     comb: &'a Comb2,
     cur: usize,

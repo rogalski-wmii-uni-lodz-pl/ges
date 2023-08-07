@@ -1,7 +1,8 @@
 use itertools::Itertools;
 
 use crate::data::{Data, PTS};
-use crate::mov::{Move, Swap};
+use crate::eval::Eval;
+use crate::mov::{Between, Move, Swap};
 use crate::{sol::Sol, K_MAX, UNSERVED};
 use std::ops::Not;
 
@@ -130,7 +131,8 @@ impl<'a> Evaluator<'a> {
 
                 // let not_whole_route = k != route_pickups.len();
 
-                let comb_total_removed_times: u64 = comb.iter().map(|&x| sol.removed_times[x]).sum();
+                let comb_total_removed_times: u64 =
+                    comb.iter().map(|&x| sol.removed_times[x]).sum();
                 let comb_has_lower_removal_score = comb_total_removed_times < pickup_removed_times;
                 if comb_has_lower_removal_score {
                     self.remove_all(&comb, sol);
@@ -146,9 +148,7 @@ impl<'a> Evaluator<'a> {
                 //     break;
                 // }
             }
-
         }
-
 
         mov.is_empty().not().then_some(mov)
     }
@@ -224,10 +224,11 @@ impl<'a> Evaluator<'a> {
             let mut ok = true;
 
             while ok {
-                let comb_total_removed_times: u64 = cc.removed().iter().map(|&x| sol.removed_times[x]).sum();
+                let comb_total_removed_times: u64 =
+                    cc.removed().iter().map(|&x| sol.removed_times[x]).sum();
                 let comb_has_lower_removal_score = comb_total_removed_times < pickup_removed_times;
                 if comb_has_lower_removal_score {
-                    let mut m = self.check_route2(cc.into_iter(), sol);
+                    let mut m = self.check_route2(&mut cc.into_iter(), sol);
 
                     if !m.is_empty() {
                         m.removed[..k].copy_from_slice(cc.removed());
@@ -242,30 +243,77 @@ impl<'a> Evaluator<'a> {
             }
         }
 
-
         mov.is_empty().not().then_some(mov)
     }
 
-    fn check_route2(&mut self, ci: impl Iterator<Item = usize>, sol: &Sol<'_>) -> Move {
-        let mut it = ci.peekable();
+    // fn check_route2(&mut self, ci: impl Iterator<Item = usize>, sol: &Sol<'_>) -> Move {
+    fn check_route2(&mut self, ci: &mut Comb2Iter, sol: &Sol<'_>) -> Move {
+        // let mut it = ci.tuple_windows();
         let mut mov = Move::new(self.pickup_idx);
-        let start = *(it.peek().unwrap());
+        // let (depot, start) = *(it.peek().unwrap());
 
-        self.pickup_evaluator.reset(sol, 0, self.pickup_idx, start);
+        let mut pickup_evaluator = Eval::new();
+        let mut delivery_evaluator = Eval::new();
+        let mut prev = ci.next().unwrap();
 
-        while self.pickup_evaluator.can_continue() {
-            self.pickup_evaluator.insert_pickup(sol);
+        while let Some(next) = ci.next() {
+            pickup_evaluator.reset_to(&sol.evals[prev]);
+            pickup_evaluator.next(self.pickup_idx, sol.data);
 
-            if self.pickup_evaluator.pickup_insertion_is_feasible() {
-                self.check_delivery_insertions(sol, &mut mov);
+            if pickup_evaluator.is_feasible(sol.data) {
+                let mut ci2 = ci.clone();
+                delivery_evaluator.reset_to(&pickup_evaluator);
+
+                let mut prev2 = self.pickup_idx;
+                let mut next2 = next;
+                while prev2 != 0 && delivery_evaluator.is_feasible(sol.data) {
+                    if delivery_evaluator.can_delivery_be_inserted(
+                        self.delivery_idx,
+                        next2,
+                        self.data,
+                        sol.latest_feasible_departure[next2],
+                    ) {
+                        mov.maybe_switch(&Between(prev, next), &Between(prev2, next2));
+                    }
+
+                    delivery_evaluator.next(next2, sol.data);
+                    prev2 = next2;
+                    next2 = ci2.next().unwrap_or(0);
+                }
+
+                // fn check_delivery_insertions(&mut self, sol: &Sol, mov: &mut Move) {
+                //     self.delivery_evaluator
+                //         .reset(self.delivery_idx, &self.pickup_evaluator);
+
+                //     self.delivery_evaluator
+                //         .check_rest_of_route(sol, &self.jump_forward, mov);
+                // }
             }
 
-            self.pickup_evaluator.advance(sol, &self.jump_forward);
+            prev = next;
         }
+
+        // for (prev, next) in ci.tuple_windows() {
+        //     pickup_evaluator.reset_to(&sol.evals[prev]);
+        //     let ci2 = ci.clone();
+        // }
+
+        // println!("{start}");
+
+        // self.pickup_evaluator.reset(sol, 0, self.pickup_idx, start);
+
+        // while self.pickup_evaluator.can_continue() {
+        //     self.pickup_evaluator.insert_pickup(sol);
+
+        //     if self.pickup_evaluator.pickup_insertion_is_feasible() {
+        //         self.check_delivery_insertions(sol, &mut mov);
+        //     }
+
+        //     self.pickup_evaluator.advance(sol, &self.jump_forward);
+        // }
 
         mov
     }
-
 
     pub fn unremove_all(&mut self, comb: &Vec<usize>) {
         for &x in comb.iter() {
