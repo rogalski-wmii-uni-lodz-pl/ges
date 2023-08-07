@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use data::Data;
 use evaluator::Evaluator;
 use itertools::Itertools;
@@ -32,6 +34,8 @@ impl<'a> Ges<'a> {
     }
 
     pub fn ges(&mut self, solution: &mut Sol) {
+        let mut total = 0;
+        let start = Instant::now();
         loop {
             println!("routes: {}", solution.routes.iter().count());
             let random_route_first = *solution
@@ -50,6 +54,7 @@ impl<'a> Ges<'a> {
             let mut min = solution.heap_size;
             while let Some(top) = solution.top() {
                 times += 1;
+                total += 1;
                 let maybe = solution.try_insert(top, &mut self.ev);
 
                 if let Some(mov) = maybe {
@@ -69,6 +74,11 @@ impl<'a> Ges<'a> {
                     solution.eprn();
                     print!("{times} {min} {max}: ");
                     solution.prn_heap();
+                }
+
+                if total % 10000 == 0 {
+                    let elapsed = start.elapsed();
+                    println!("total {total} after {elapsed:?}");
                 }
             }
 
