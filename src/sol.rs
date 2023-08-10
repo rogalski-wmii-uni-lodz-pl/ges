@@ -202,7 +202,7 @@ impl<'a> Sol<'a> {
 
         self.routes
             .iter()
-            .filter_map(|&route| ev.check_add_to_route2(&self, route))
+            .filter_map(|&route| ev.check_add_to_route(&self, route))
             .reduce(Move::pick2)
     }
 
