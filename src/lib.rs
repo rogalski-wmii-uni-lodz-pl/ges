@@ -2,8 +2,6 @@ use std::time::Instant;
 
 use data::Data;
 use evaluator::Evaluator;
-use itertools::Itertools;
-use rand::seq::IteratorRandom;
 use sol::Sol;
 
 pub mod data;
@@ -14,13 +12,6 @@ pub mod sol;
 
 const UNSERVED: usize = usize::MAX;
 const K_MAX: usize = 3;
-
-// pub struct Removed {
-//     pub pickup: usize,
-//     pub delivery: usize,
-//     pub times: usize,
-// }
-//
 
 pub struct Ges<'a> {
     ev: Evaluator<'a>,
@@ -38,13 +29,7 @@ impl<'a> Ges<'a> {
         let start = Instant::now();
         loop {
             println!("routes: {}", solution.routes.iter().count());
-            let random_route_first = *solution
-                .routes
-                .iter()
-                .sorted()
-                .choose(&mut rand::thread_rng())
-                .unwrap();
-            // let v = s.routes.iter().collect_vec();
+            let random_route_first = solution.random_route_first();
             println!("{random_route_first:?}");
             solution.eprn();
             solution.remove_route(random_route_first);
@@ -86,6 +71,7 @@ impl<'a> Ges<'a> {
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {

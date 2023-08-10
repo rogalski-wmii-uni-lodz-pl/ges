@@ -29,13 +29,13 @@ pub fn idx(a: usize, b: usize) -> usize {
 
 impl Data {
     pub fn read(path: &Path) -> Self {
-        let g = read::<Instance>(path).unwrap();
+        let instance = read::<Instance>(path).unwrap();
 
         let mut dist = vec![u64::MAX; SIZE];
         let mut time = vec![u64::MAX; SIZE];
         let mut pts = [Default::default(); PTS];
 
-        for a in g.pts.iter() {
+        for a in instance.pts.iter() {
             let (p, d) = a.pickup_delivery.unwrap();
             let pair = if p == 0 { d } else { p };
 
@@ -47,7 +47,7 @@ impl Data {
                 is_delivery: d == 0,
             };
 
-            for b in g.pts.iter() {
+            for b in instance.pts.iter() {
                 let xs = a.x - b.x;
                 let xs2 = (xs * xs) as u64;
 
@@ -66,9 +66,9 @@ impl Data {
         Data {
             dist,
             time,
-            max_cap: g.max_capacity,
+            max_cap: instance.max_capacity,
             pts,
-            points: g.pts.len(),
+            points: instance.pts.len(),
         }
     }
 

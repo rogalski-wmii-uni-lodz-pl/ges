@@ -1,6 +1,7 @@
 use std::{collections::HashSet, mem::replace};
 
 use itertools::Itertools;
+use rand::seq::IteratorRandom;
 use rand::Rng;
 
 use crate::data::{idx, Data, PTS};
@@ -52,6 +53,15 @@ impl<'a> Sol<'a> {
                 self.add_route(&vec)
             }
         }
+    }
+
+    pub fn random_route_first(&self) -> usize {
+        *self
+            .routes
+            .iter()
+            .sorted()
+            .choose(&mut rand::thread_rng())
+            .unwrap()
     }
 
     fn fix_evals(&mut self, first: usize) {
@@ -237,13 +247,15 @@ impl<'a> Sol<'a> {
     pub fn only_pickup_in_route(&self, pickup: usize) -> bool {
         let delivery = self.data.pair_of(pickup);
 
-        (0, pickup, delivery, 0)
-            == (
-                self.prev[pickup],
-                self.prev[delivery],
-                self.next[pickup],
-                self.next[delivery],
-            )
+        let empty_route = [0, pickup, delivery, 0];
+        let route_fragment = [
+            self.prev[pickup],
+            self.prev[delivery],
+            self.next[pickup],
+            self.next[delivery],
+        ];
+
+        route_fragment == empty_route
     }
 
     pub fn push(&mut self, idx: usize) {
