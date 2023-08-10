@@ -54,9 +54,9 @@ impl<'a> Evaluator<'a> {
 
         let mut s = Swap::new(a_pickup, b_pickup);
 
-        let a = self.check_with_removed(sol, a_pickup, b_pickup);
+        let a = self.check_remove_and_insert(sol, a_pickup, b_pickup);
         if !a.is_empty() {
-            let b = self.check_with_removed(sol, b_pickup, a_pickup);
+            let b = self.check_remove_and_insert(sol, b_pickup, a_pickup);
             if !b.is_empty() {
                 s.a = a;
                 s.b = b;
@@ -66,15 +66,16 @@ impl<'a> Evaluator<'a> {
         s.is_empty().not().then_some(s)
     }
 
-    fn check_with_removed(&mut self, sol: &Sol, removed: usize, inserted: usize) -> Move {
-        let removed_delivery = sol.data.pair_of(removed);
+    fn check_remove_and_insert(&mut self, sol: &Sol, to_remove: usize, to_insert: usize) -> Move {
+        let to_remove_pair = sol.data.pair_of(to_remove);
 
-        let removed_route = sol.first[removed];
-        let mut removed_route_iter = sol
-            .route_iter(removed_route)
-            .filter(|&x| x != removed && x != removed_delivery);
+        let route_of_to_remove = sol.first[to_remove];
 
-        self.check_insertions_into_route(inserted, &mut removed_route_iter, sol)
+        let mut route_iterator = sol
+            .route_iter(route_of_to_remove)
+            .filter(|&x| x != to_remove && x != to_remove_pair);
+
+        self.check_insertions_into_route(to_insert, &mut route_iterator, sol)
     }
 
     pub fn check_add_to_route_with_k_removed2(

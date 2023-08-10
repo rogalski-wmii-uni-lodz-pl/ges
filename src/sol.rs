@@ -185,7 +185,9 @@ impl<'a> Sol<'a> {
     fn random_pickup(&mut self) -> usize {
         let mut idx = self.random_idx();
 
-        while self.is_removed(idx) || self.data.pts[idx].is_delivery || self.only_pickup_in_route(idx)
+        while self.is_removed(idx)
+            || self.data.pts[idx].is_delivery
+            || self.only_pickup_in_route(idx)
         {
             idx = self.random_idx();
         }
