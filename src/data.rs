@@ -75,4 +75,8 @@ impl Data {
     pub fn pair_of(&self, idx: usize) -> usize {
         self.pts[idx].pair
     }
+
+    pub fn time_between(&self, from: usize, to: usize) -> u64 {
+        self.time[idx(from, to)]
+    }
 }

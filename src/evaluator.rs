@@ -73,7 +73,7 @@ impl<'a> Evaluator<'a> {
         self.check_insertions_into_route(to_insert, &mut route_iterator, sol)
     }
 
-    pub fn check_add_to_route_with_k_removed2(
+    pub fn check_add_to_route_with_k_removed(
         &mut self,
         sol: &Sol,
         route_start: usize,
@@ -84,7 +84,8 @@ impl<'a> Evaluator<'a> {
         self.combinations
             .k_combinations_of_route(sol, route_start, k);
 
-        if k < self.combinations.len / 2 {
+        let not_removing_whole_route = k < self.combinations.route_len / 2;
+        if not_removing_whole_route {
             let pickup_removed_times = sol.removed_times[self.pickup_idx];
 
             let mut ok = if self.combinations.cur_removed_times_total >= pickup_removed_times {

@@ -44,14 +44,18 @@ impl Eval {
     ) -> bool {
         let inserted_node = &data.pts[inserted_node_id];
 
-        let ins_arrival = self.time + data.time[idx(self.node, inserted_node_id)];
-        let ins_service_start = std::cmp::max(ins_arrival, inserted_node.start);
-        let next_arrival = ins_service_start + data.time[idx(inserted_node_id, next_node_id)];
+        let inserted_arrival = self.time + data.time_between(self.node, inserted_node_id);
+        let inserted_service_start = inserted_arrival.max(inserted_node.start);
+        let next_arrival =
+            inserted_service_start + data.time_between(inserted_node_id, next_node_id);
 
         // let capacity_after_insertion = self.capacity + inserted_node.dem;
 
-        ins_service_start <= inserted_node.due
-            && next_arrival <= latest_feasible_departure_from_next
+        let arrived_at_inserted_before_due_time = inserted_arrival <= inserted_node.due;
+        let arrived_at_next_no_later_than_feasible =
+            next_arrival <= latest_feasible_departure_from_next;
+
+        arrived_at_inserted_before_due_time && arrived_at_next_no_later_than_feasible
         // && capacity_after_insertion <= data.max_cap && c >= 0
         // this check is unnecessary because pickups are always before deliveries, so if pickup has
         // not violated the capacity constraint, then adding delivery will not violate the capacity

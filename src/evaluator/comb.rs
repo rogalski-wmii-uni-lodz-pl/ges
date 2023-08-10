@@ -38,7 +38,7 @@ impl Default for PairInfo {
 
 pub struct Combinations {
     pub k: usize,
-    pub len: usize,
+    pub route_len: usize,
     pub cur_removed_times_total: u64,
     pub route: [PairInfo; PTS],
     pub route_idx: [usize; PTS],
@@ -53,7 +53,7 @@ impl Combinations {
 
         Self {
             k: 0,
-            len: 0,
+            route_len: 0,
             cur_removed_times_total: 0,
             route,
             route_idx: [UNSERVED; PTS],
@@ -79,7 +79,7 @@ impl Combinations {
             cur = sol.next[cur];
         }
 
-        self.len = i + 1;
+        self.route_len = i + 1;
     }
 
     fn copy_pair_info(&mut self, route_start: usize, sol: &Sol) {
@@ -130,7 +130,7 @@ impl Combinations {
     }
 
     fn set_k_plus_1_guard_value(&mut self) {
-        self.combination_indices[self.k] = self.len - 1;
+        self.combination_indices[self.k] = self.route_len - 1;
     }
 
     fn fill_rest_of_combination_indices(&mut self) {
@@ -153,7 +153,7 @@ impl Combinations {
 
     pub fn r(&self) -> Vec<usize> {
         // not extremely efficient, but not meant to be
-        self.route[0..self.len]
+        self.route[0..self.route_len]
             .iter()
             .enumerate()
             .skip(1)
@@ -238,9 +238,9 @@ impl<'a> Iterator for CombinationIterator<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let res = (self.cur < self.comb.len).then_some(self.comb.route[self.cur].idx);
+        let res = (self.cur < self.comb.route_len).then_some(self.comb.route[self.cur].idx);
         self.cur += 1;
-        while self.cur < self.comb.len && self.comb.is_removed(&self.cur) {
+        while self.cur < self.comb.route_len && self.comb.is_removed(&self.cur) {
             self.cur += 1;
         }
 
@@ -303,7 +303,7 @@ mod test {
         c.k_combinations_of_route(&sol, 1, 1);
 
         assert_eq!(c.k, 1);
-        assert_eq!(c.len, 14);
+        assert_eq!(c.route_len, 14);
         assert_eq!(c.combination_indices[0], 1);
         assert_eq!(c.combination_indices[1], 13);
 
@@ -322,7 +322,7 @@ mod test {
         c.k_combinations_of_route(&sol, 1, 2);
 
         assert_eq!(c.k, 2);
-        assert_eq!(c.len, 14);
+        assert_eq!(c.route_len, 14);
         assert_eq!(c.combination_indices[0], 1);
         assert_eq!(c.combination_indices[1], 3);
         assert_eq!(c.combination_indices[2], 13);
@@ -351,7 +351,7 @@ mod test {
         sol.add_route(&vec![0, 1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 11, 12, 0]);
         c.k_combinations_of_route(&sol, 1, 1);
         assert_eq!(c.k, 1);
-        assert_eq!(c.len, 14);
+        assert_eq!(c.route_len, 14);
         assert_eq!(c.combination_indices[0], 1);
         assert_eq!(c.combination_indices[1], 13);
 

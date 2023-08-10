@@ -215,7 +215,7 @@ impl<'a> Sol<'a> {
             let mov = self
                 .routes
                 .iter()
-                .filter_map(|&route| ev.check_add_to_route_with_k_removed2(&self, route, k))
+                .filter_map(|&route| ev.check_add_to_route_with_k_removed(&self, route, k))
                 .reduce(Move::pick2);
 
             if mov.is_some() {
