@@ -1,4 +1,4 @@
-use crate::data::{Data, PTS};
+use crate::data::Data;
 use crate::eval::Eval;
 use crate::mov::{Between, Move, Swap};
 use crate::{sol::Sol, UNSERVED};
@@ -10,21 +10,16 @@ pub mod comb;
 
 pub struct Evaluator<'a> {
     data: &'a Data,
-    pickup_idx: usize,
     combinations: Combinations,
+    pickup_idx: usize,
 }
 
 impl<'a> Evaluator<'a> {
     pub fn new(data: &'a Data) -> Self {
-        let mut jump_forward = [0; PTS];
-        jump_forward
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, x)| *x = i);
         Self {
             data,
-            pickup_idx: UNSERVED,
             combinations: Combinations::new(),
+            pickup_idx: UNSERVED,
         }
     }
 
@@ -123,28 +118,29 @@ impl<'a> Evaluator<'a> {
     fn check_insertions_into_route<ClonableIterator: Iterator<Item = usize> + Clone>(
         &self,
         pickup: usize,
-        route_iterator: &mut ClonableIterator,
+        pickup_iterator: &mut ClonableIterator,
         sol: &Sol,
     ) -> Move {
         let mut mov = Move::new(pickup);
         let delivery_idx = sol.data.pair_of(pickup);
+        let delivery_due = self.data.pts[delivery_idx].due;
 
-        let mut pickup_evaluator = Eval::new();
-        let mut delivery_evaluator = Eval::new();
+        let mut pickup_eval = Eval::new();
+        let mut delivery_eval = Eval::new();
         let mut prev = 0;
 
-        while let Some(next) = route_iterator.next() {
-            pickup_evaluator.reset_to(&sol.evals[prev]);
-            pickup_evaluator.next(pickup, self.data);
+        while let Some(next) = pickup_iterator.next() {
+            pickup_eval.reset_to(&sol.evals[prev]);
+            pickup_eval.next(pickup, self.data);
 
-            if pickup_evaluator.is_feasible(self.data) {
-                let mut ci2 = route_iterator.clone();
-                delivery_evaluator.reset_to(&pickup_evaluator);
+            if pickup_eval.is_feasible(self.data) {
+                let mut delivery_iterator = pickup_iterator.clone();
+                delivery_eval.reset_to(&pickup_eval);
 
                 let mut prev2 = pickup;
                 let mut next2 = next;
-                while prev2 != 0 && delivery_evaluator.is_feasible(self.data) {
-                    if delivery_evaluator.can_delivery_be_inserted(
+                while prev2 != 0 && delivery_eval.is_feasible(self.data) {
+                    if delivery_eval.can_delivery_be_inserted(
                         delivery_idx,
                         next2,
                         self.data,
@@ -153,17 +149,20 @@ impl<'a> Evaluator<'a> {
                         mov.maybe_switch(&Between(prev, next), &Between(prev2, next2));
                     }
 
-                    if delivery_evaluator.time > self.data.pts[delivery_idx].due {
+                    let too_late_for_delivery = delivery_eval.time > delivery_due;
+                    if too_late_for_delivery {
                         break;
                     }
 
-                    delivery_evaluator.next(next2, self.data);
+                    delivery_eval.next(next2, self.data);
                     prev2 = next2;
-                    next2 = ci2.next().unwrap_or(0);
+                    next2 = delivery_iterator.next().unwrap_or(0);
                 }
             }
 
-            if !pickup_evaluator.is_time_feasible(self.data) {
+            let too_late_for_pickup = !pickup_eval.is_time_feasible(self.data);
+
+            if too_late_for_pickup {
                 break;
             }
 
