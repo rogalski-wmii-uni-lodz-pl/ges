@@ -33,16 +33,16 @@ impl Default for PairInfo {
     }
 }
 
-pub struct Comb2 {
+pub struct Combinations {
+    pub k: usize,
+    pub len: usize,
     pub route: [PairInfo; PTS],
     pub route_idx: [usize; PTS],
-    pub len: usize,
-    pub iters: [usize; K_MAX + 1],
+    pub combination_indices: [usize; K_MAX + 1],
     pub removed: [usize; K_MAX],
-    pub k: usize,
 }
 
-impl Comb2 {
+impl Combinations {
     pub fn new() -> Self {
         let mut route = [Default::default(); PTS];
         route[0] = PairInfo::new(0, 0, false);
@@ -51,44 +51,56 @@ impl Comb2 {
             route,
             route_idx: [UNSERVED; PTS],
             len: 0,
-            iters: [UNSERVED; K_MAX + 1],
+            combination_indices: [UNSERVED; K_MAX + 1],
             removed: [UNSERVED; K_MAX],
             k: 0,
         }
     }
 
-    pub fn from_route(&mut self, sol: &Sol, route_start: usize, k: usize) {
+    pub fn k_combinations_of_route(&mut self, sol: &Sol, route_start: usize, k: usize) {
         self.k = k;
-        self.fill_indices(route_start, sol);
-        self.fill_pair_info(route_start, sol);
+        self.fill_route_indices_and_set_len(route_start, sol);
+        self.copy_pair_info(route_start, sol);
+        self.initialize_combination_indices(k);
+    }
 
+    fn initialize_combination_indices(&mut self, k: usize) {
+        self.set_initial_position_of_indices(k);
+        self.set_k_plus_1_guard_value(k);
+        self.fill_rest_of_combination_indices(k);
+    }
+
+    fn fill_rest_of_combination_indices(&mut self, k: usize) {
+        self.combination_indices[k + 1..=K_MAX].fill(UNSERVED)
+    }
+
+    fn set_k_plus_1_guard_value(&mut self, k: usize) {
+        self.combination_indices[k] = self.len - 1;
+    }
+
+    fn set_initial_position_of_indices(&mut self, k: usize) {
         let mut cur = 1;
-        for i in 0..k {
+        for idx in 0..k {
             while self.route[cur].delivery {
                 cur += 1;
             }
 
-            self.set_iters_and_removed(i, cur);
+            self.set_index_and_removed(idx, cur);
             cur += 1;
         }
-
-        self.iters[k] = self.len - 1;
-        for i in (k + 1)..=K_MAX {
-            self.iters[i] = UNSERVED
-        }
     }
 
-    fn set_iters_and_removed(&mut self, it: usize, val: usize) {
-        self.iters[it] = val;
-        self.removed[it] = self.route[val].idx;
+    fn set_index_and_removed(&mut self, idx: usize, next_pickup_idx: usize) {
+        self.combination_indices[idx] = next_pickup_idx;
+        self.removed[idx] = self.route[next_pickup_idx].idx;
     }
 
-    fn fill_pair_info(&mut self, route_start: usize, sol: &Sol<'_>) {
+    fn copy_pair_info(&mut self, route_start: usize, sol: &Sol) {
         let mut cur = route_start;
         let mut i = 1;
         while cur != 0 {
             let pt = sol.data.pts[cur];
-            self.route[i] = PairInfo::new(cur, self.route_idx[pt.pair], pt.delivery);
+            self.route[i] = PairInfo::new(cur, self.route_idx[pt.pair], pt.is_delivery);
 
             i += 1;
             cur = sol.next[cur];
@@ -101,7 +113,7 @@ impl Comb2 {
         };
     }
 
-    fn fill_indices(&mut self, route_start: usize, sol: &Sol<'_>) {
+    fn fill_route_indices_and_set_len(&mut self, route_start: usize, sol: &Sol) {
         let mut cur = route_start;
         let mut i = 1;
         while cur != 0 {
@@ -115,14 +127,10 @@ impl Comb2 {
     }
 
     pub fn is_removed(&self, i: &usize) -> bool {
-        self.iters[0..self.k].contains(i) || self.iters[0..self.k].iter().any(|iter| *i == self.route[*iter].pair_idx)
-        // for iter in self.iters[0..self.k].iter() {
-        //     if *i == *iter || *i == self.route[*iter].pair_idx {
-        //         return true;
-        //     }
-        // }
-
-        // false
+        self.combination_indices[0..self.k].contains(i)
+            || self.combination_indices[0..self.k]
+                .iter()
+                .any(|iter| *i == self.route[*iter].pair_idx)
     }
 
     pub fn r(&self) -> Vec<usize> {
@@ -136,14 +144,14 @@ impl Comb2 {
 
     pub fn next_comb(&mut self) -> bool {
         for i in (0..self.k).rev() {
-            let next = self.next_pickup_idx(self.iters[i]);
-            if next != self.iters[i + 1] {
-                self.set_iters_and_removed(i, next);
+            let next = self.next_pickup_idx(self.combination_indices[i]);
+            if next != self.combination_indices[i + 1] {
+                self.set_index_and_removed(i, next);
 
-                let mut next2 = self.iters[i];
+                let mut next2 = self.combination_indices[i];
                 for it in i + 1..self.k {
                     next2 = self.next_pickup_idx(next2);
-                    self.set_iters_and_removed(it, next2);
+                    self.set_index_and_removed(it, next2);
                 }
 
                 return true;
@@ -164,7 +172,7 @@ impl Comb2 {
     }
 
     pub fn removed_idxs(&self) -> &[usize] {
-        &self.iters[0..self.k]
+        &self.combination_indices[0..self.k]
     }
 
     pub fn removed(&self) -> &[usize] {
@@ -174,12 +182,12 @@ impl Comb2 {
 
 #[derive(Clone, Copy)]
 pub struct Comb2Iter<'a> {
-    comb: &'a Comb2,
+    comb: &'a Combinations,
     cur: usize,
 }
 
 impl<'a> Comb2Iter<'a> {
-    pub fn new(comb: &'a Comb2) -> Self {
+    pub fn new(comb: &'a Combinations) -> Self {
         let mut a = Self { comb, cur: 0 };
         a.next();
         a
@@ -200,7 +208,7 @@ impl<'a> Iterator for Comb2Iter<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a Comb2 {
+impl<'a> IntoIterator for &'a Combinations {
     type Item = usize;
     type IntoIter = Comb2Iter<'a>;
 
@@ -229,13 +237,13 @@ mod test {
             start: 0,
             due: 0,
             pair: 0,
-            delivery: false,
+            is_delivery: false,
         }; PTS];
         for (pickup, delivery) in (1..points).tuples() {
             pts[pickup].pair = delivery;
-            pts[pickup].delivery = false;
+            pts[pickup].is_delivery = false;
             pts[delivery].pair = pickup;
-            pts[delivery].delivery = true;
+            pts[delivery].is_delivery = true;
         }
 
         let matrix = vec![0; PTS * PTS];
@@ -251,13 +259,13 @@ mod test {
 
         sol.add_route(&vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0]);
 
-        let mut c = Comb2::new();
-        c.from_route(&sol, 1, 1);
+        let mut c = Combinations::new();
+        c.k_combinations_of_route(&sol, 1, 1);
 
         assert_eq!(c.k, 1);
         assert_eq!(c.len, 14);
-        assert_eq!(c.iters[0], 1);
-        assert_eq!(c.iters[1], 13);
+        assert_eq!(c.combination_indices[0], 1);
+        assert_eq!(c.combination_indices[1], 13);
 
         let nexts = vec![
             LeftRemoved(vec![0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1]),
@@ -270,14 +278,14 @@ mod test {
 
         check2(&mut c, nexts);
 
-        let mut c = Comb2::new();
-        c.from_route(&sol, 1, 2);
+        let mut c = Combinations::new();
+        c.k_combinations_of_route(&sol, 1, 2);
 
         assert_eq!(c.k, 2);
         assert_eq!(c.len, 14);
-        assert_eq!(c.iters[0], 1);
-        assert_eq!(c.iters[1], 3);
-        assert_eq!(c.iters[2], 13);
+        assert_eq!(c.combination_indices[0], 1);
+        assert_eq!(c.combination_indices[1], 3);
+        assert_eq!(c.combination_indices[2], 13);
 
         let nexts = vec![
             LeftRemoved(vec![0, 5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1, 3]),
@@ -301,11 +309,11 @@ mod test {
 
         sol.remove_route(1);
         sol.add_route(&vec![0, 1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 11, 12, 0]);
-        c.from_route(&sol, 1, 1);
+        c.k_combinations_of_route(&sol, 1, 1);
         assert_eq!(c.k, 1);
         assert_eq!(c.len, 14);
-        assert_eq!(c.iters[0], 1);
-        assert_eq!(c.iters[1], 13);
+        assert_eq!(c.combination_indices[0], 1);
+        assert_eq!(c.combination_indices[1], 13);
 
         let nexts = vec![
             LeftRemoved(vec![0, 3, 5, 4, 6, 7, 8, 9, 10, 11, 12, 0], vec![1]),
@@ -320,7 +328,7 @@ mod test {
 
         sol.remove_route(1);
         sol.add_route(&vec![0, 1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 11, 12, 0]);
-        c.from_route(&sol, 1, 2);
+        c.k_combinations_of_route(&sol, 1, 2);
 
         let nexts = vec![
             LeftRemoved(vec![0, 5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1, 3]),
@@ -342,7 +350,7 @@ mod test {
         check2(&mut c, nexts);
     }
 
-    fn check2(c: &mut Comb2, nexts: Vec<LeftRemoved>) {
+    fn check2(c: &mut Combinations, nexts: Vec<LeftRemoved>) {
         for LeftRemoved(next, removed) in nexts.iter().skip(1) {
             assert!(c.next_comb());
             assert_eq!(c.r(), *next);

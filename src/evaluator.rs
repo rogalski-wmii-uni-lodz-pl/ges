@@ -4,7 +4,7 @@ use crate::mov::{Between, Move, Swap};
 use crate::{sol::Sol, UNSERVED};
 use std::ops::Not;
 
-use self::comb::Comb2;
+use self::comb::Combinations;
 
 pub mod comb;
 
@@ -12,7 +12,7 @@ pub struct Evaluator<'a> {
     data: &'a Data,
     pickup_idx: usize,
     delivery_idx: usize,
-    cc: Comb2,
+    cc: Combinations,
 }
 
 impl<'a> Evaluator<'a> {
@@ -26,7 +26,7 @@ impl<'a> Evaluator<'a> {
             data,
             pickup_idx: UNSERVED,
             delivery_idx: UNSERVED,
-            cc: Comb2::new(),
+            cc: Combinations::new(),
         }
     }
 
@@ -50,8 +50,8 @@ impl<'a> Evaluator<'a> {
 
     pub fn check_swap(&mut self, sol: &Sol, a_pickup: usize, b_pickup: usize) -> Option<Swap> {
         debug_assert!(a_pickup != b_pickup);
-        debug_assert!(!sol.data.pts[a_pickup].delivery);
-        debug_assert!(!sol.data.pts[b_pickup].delivery);
+        debug_assert!(!sol.data.pts[a_pickup].is_delivery);
+        debug_assert!(!sol.data.pts[b_pickup].is_delivery);
 
         let a_route = sol.first[a_pickup];
         let b_route = sol.first[b_pickup];
@@ -90,7 +90,7 @@ impl<'a> Evaluator<'a> {
     ) -> Option<Move> {
         let mut mov = Move::new(self.pickup_idx);
 
-        self.cc.from_route(sol, route_start, k);
+        self.cc.k_combinations_of_route(sol, route_start, k);
         if k < self.cc.len / 2 {
             let pickup_removed_times = sol.removed_times[self.pickup_idx];
 

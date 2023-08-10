@@ -11,7 +11,7 @@ pub struct PointData {
     pub start: u64,
     pub due: u64,
     pub pair: usize,
-    pub delivery: bool,
+    pub is_delivery: bool,
 }
 
 #[derive(Debug)]
@@ -44,7 +44,7 @@ impl Data {
                 start: a.start as u64 * MULT,
                 due: a.due as u64 * MULT,
                 pair: pair as usize,
-                delivery: d == 0,
+                is_delivery: d == 0,
             };
 
             for b in g.pts.iter() {

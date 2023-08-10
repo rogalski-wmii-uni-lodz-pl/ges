@@ -47,7 +47,7 @@ impl<'a> Sol<'a> {
     pub fn initialize(&mut self) {
         for i in 1..self.data.points {
             let p = self.data.pts[i];
-            if !p.delivery {
+            if !p.is_delivery {
                 let vec = vec![0, i, p.pair, 0];
                 self.add_route(&vec)
             }
@@ -185,7 +185,7 @@ impl<'a> Sol<'a> {
     fn random_pickup(&mut self) -> usize {
         let mut idx = self.random_idx();
 
-        while self.is_removed(idx) || self.data.pts[idx].delivery || self.only_pickup_in_route(idx)
+        while self.is_removed(idx) || self.data.pts[idx].is_delivery || self.only_pickup_in_route(idx)
         {
             idx = self.random_idx();
         }
@@ -255,7 +255,7 @@ impl<'a> Sol<'a> {
         let mut idx = first;
         while idx != 0 {
             self.first[idx] = UNSERVED;
-            if !self.data.pts[idx].delivery {
+            if !self.data.pts[idx].is_delivery {
                 self.push(idx);
                 self.removed_times[idx] += 1;
             }

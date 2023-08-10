@@ -26,8 +26,9 @@ impl Eval {
 
     pub fn next(&mut self, next_node: usize, data: &Data) {
         let nn = &data.pts[next_node];
-        self.distance += data.dist[idx(self.node, next_node)];
-        self.time += data.time[idx(self.node, next_node)];
+        let i = idx(self.node, next_node);
+        self.distance += data.dist[i];
+        self.time += data.time[i];
         self.time = std::cmp::max(self.time, nn.start);
         self.capacity += nn.dem;
 
