@@ -94,29 +94,33 @@ impl<'a> Evaluator<'a> {
         if k < self.cc.len / 2 {
             let pickup_removed_times = sol.removed_times[self.pickup_idx];
 
-            let mut ok = true;
+            let mut ok = if self.cc.cur_removed_times_total >= pickup_removed_times {
+                self.cc.next_combination_with_lower_score(pickup_removed_times)
+            } else {
+                true
+            };
 
             while ok {
-                let comb_total_removed_times: u64 = self
-                    .cc
-                    .removed()
-                    .iter()
-                    .map(|&x| sol.removed_times[x])
-                    .sum();
-                let comb_has_lower_removal_score = comb_total_removed_times < pickup_removed_times;
-                if comb_has_lower_removal_score {
-                    let mut m = self.check_route2(self.pickup_idx, &mut self.cc.into_iter(), sol);
+                // let comb_total_removed_times: u64 = self
+                //     .cc
+                //     .removed()
+                //     .iter()
+                //     .map(|&x| sol.removed_times[x])
+                //     .sum();
+                // let comb_has_lower_removal_score = comb_total_removed_times < pickup_removed_times;
+                // if comb_has_lower_removal_score {
+                let mut m = self.check_route2(self.pickup_idx, &mut self.cc.into_iter(), sol);
 
-                    if !m.is_empty() {
-                        m.removed[..k].copy_from_slice(self.cc.removed());
-                        mov.pick(&m)
-                    }
+                if !m.is_empty() {
+                    m.removed[..k].copy_from_slice(self.cc.removed());
+                    mov.pick(&m)
                 }
+                // }
                 // if !mov.is_empty() {
                 //     break;
                 // }
 
-                ok = self.cc.next_comb();
+                ok = self.cc.next_combination_with_lower_score(pickup_removed_times);
             }
         }
 
