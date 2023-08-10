@@ -202,7 +202,7 @@ impl<'a> Sol<'a> {
 
         self.routes
             .iter()
-            .filter_map(|&route| ev.check_add_to_route(&self, route))
+            .filter_map(|&route| ev.check_add_to_route2(&self, route))
             .reduce(Move::pick2)
     }
 
@@ -531,22 +531,32 @@ impl<'a> Sol<'a> {
     pub fn route_iter(&self, start: usize) -> RouteIterator {
         RouteIterator {
             solution: &self,
+            prev: 0,
+            finished: false,
             cur: start,
         }
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct RouteIterator<'a> {
     solution: &'a Sol<'a>,
+    prev: usize,
     cur: usize,
+    finished: bool,
 }
 
 impl<'a> Iterator for RouteIterator<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.cur = self.solution.next[self.cur];
-
-        (self.solution.next[self.cur] != 0).then_some(self.cur)
+        if self.finished {
+            None
+        } else {
+            self.prev = self.cur;
+            self.cur = self.solution.next[self.cur];
+            self.finished = self.prev + self.cur == 0;
+            Some(self.prev)
+        }
     }
 }
