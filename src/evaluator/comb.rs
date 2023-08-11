@@ -90,7 +90,7 @@ impl Combinations {
             self.route[i] = PairInfo::new(
                 cur,
                 self.route_idx[pt.pair],
-                sol.heap.removed_times[cur],
+                sol.removed_times(cur),
                 pt.is_delivery,
             );
 

@@ -19,13 +19,9 @@ pub struct Sol<'a> {
     pub next: [usize; PTS],
     pub prev: [usize; PTS],
     pub latest_feasible_departure: [u64; PTS],
-    pub evals: Vec<Eval>,
     pub first: [usize; PTS],
     pub routes: HashSet<usize>,
     pub heap: Heap,
-    // pub removed_times: [u64; PTS],
-    // pub removed_idx: [usize; PTS],
-    // pub heap_size: usize,
 }
 
 impl<'a> Sol<'a> {
@@ -33,7 +29,6 @@ impl<'a> Sol<'a> {
         let unserved = [UNSERVED; PTS];
         let mut latest_feasible_departure = [0; PTS];
         latest_feasible_departure[0] = data.pts[0].due;
-        let evals: Vec<_> = (0..PTS).map(|_| Eval::new()).collect();
 
         Sol {
             data,
@@ -41,7 +36,6 @@ impl<'a> Sol<'a> {
             prev: unserved.clone(),
             latest_feasible_departure,
             heap: Heap::new(),
-            evals,
             first: unserved.clone(),
             routes: HashSet::new(),
         }
@@ -64,19 +58,6 @@ impl<'a> Sol<'a> {
             .sorted()
             .choose(&mut rand::thread_rng())
             .unwrap()
-    }
-
-    fn fix_evals(&mut self, first: usize) {
-        let mut ev = Eval::new();
-        let prev = self.prev[first];
-        ev.reset_to(&self.evals[prev]);
-
-        let mut node = first;
-        while node != 0 {
-            ev.next(node, self.data);
-            self.evals[node].reset_to(&ev);
-            node = self.next[node];
-        }
     }
 
     fn fix_latest_feasible_departures(&mut self, last: usize) {
@@ -109,7 +90,6 @@ impl<'a> Sol<'a> {
         self.next[0] = 0;
 
         self.fix_latest_feasible_departures(last_non_depot);
-        self.fix_evals(first_non_depot);
 
         self.routes.insert(first_non_depot);
 
@@ -125,7 +105,6 @@ impl<'a> Sol<'a> {
     pub fn is_removed(&self, point_idx: usize) -> bool {
         self.next[point_idx] == UNSERVED
     }
-
 
     pub fn routes_number(&self) -> usize {
         self.routes.iter().count()
@@ -237,7 +216,6 @@ impl<'a> Sol<'a> {
         route_fragment == empty_route
     }
 
-
     pub fn remove_route(&mut self, first: usize) {
         debug_assert!(self.prev[first] == 0);
         self.routes.remove(&first);
@@ -290,15 +268,11 @@ impl<'a> Sol<'a> {
 
     fn fix_route(&mut self, first: usize) {
         debug_assert!(self.prev[first] == 0);
-        let mut ev = Eval::new();
         let mut prev = self.prev[first];
-        ev.reset_to(&self.evals[prev]);
 
         let mut node = first;
         while node != 0 {
             self.first[node] = first;
-            ev.next(node, self.data);
-            self.evals[node].reset_to(&ev);
             prev = node;
             node = self.next[node];
         }
@@ -512,6 +486,10 @@ impl<'a> Sol<'a> {
             finished: false,
             cur: start,
         }
+    }
+
+    pub fn removed_times(&self, idx: usize) -> u64 {
+        self.heap.removed_times[idx]
     }
 }
 

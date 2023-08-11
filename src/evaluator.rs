@@ -84,9 +84,10 @@ impl<'a> Evaluator<'a> {
         self.combinations
             .k_combinations_of_route(sol, route_start, k);
 
-        let not_removing_whole_route = k < self.combinations.route_len / 2;
+        let pickups_in_route = self.combinations.route_len / 2;
+        let not_removing_whole_route = k < pickups_in_route;
         if not_removing_whole_route {
-            let pickup_removed_times = sol.heap.removed_times[self.pickup_idx];
+            let pickup_removed_times = sol.removed_times(self.pickup_idx);
 
             let mut ok = if self.combinations.cur_removed_times_total >= pickup_removed_times {
                 self.combinations
@@ -126,48 +127,49 @@ impl<'a> Evaluator<'a> {
         let delivery_idx = sol.data.pair_of(pickup);
         let delivery_due = self.data.pts[delivery_idx].due;
 
-        let mut pickup_eval = Eval::new();
-        let mut delivery_eval = Eval::new();
-        let mut prev = 0;
+        let mut before_pickup = 0;
+        let mut normal_route_eval = Eval::new();
+        let mut insertion_eval = Eval::new();
 
-        while let Some(next) = pickup_iterator.next() {
-            pickup_eval.reset_to(&sol.evals[prev]);
-            pickup_eval.next(pickup, self.data);
+        while let Some(after_pickup) = pickup_iterator.next() {
+            insertion_eval.reset_to(&normal_route_eval);
+            insertion_eval.next(pickup, self.data);
 
-            if pickup_eval.is_feasible(self.data) {
+            if insertion_eval.arrives_too_late(self.data) {
+                break;
+            }
+
+            if insertion_eval.is_feasible(self.data) {
                 let mut delivery_iterator = pickup_iterator.clone();
-                delivery_eval.reset_to(&pickup_eval);
 
-                let mut prev2 = pickup;
-                let mut next2 = next;
-                while prev2 != 0 && delivery_eval.is_feasible(self.data) {
-                    if delivery_eval.can_delivery_be_inserted(
+                let mut before_delivery = pickup;
+                let mut after_delivery = after_pickup;
+                while before_delivery != 0 && insertion_eval.is_feasible(self.data) {
+                    if insertion_eval.can_delivery_be_inserted(
                         delivery_idx,
-                        next2,
+                        after_delivery,
                         self.data,
-                        sol.latest_feasible_departure[next2],
+                        sol.latest_feasible_departure[after_delivery],
                     ) {
-                        mov.maybe_switch(&Between(prev, next), &Between(prev2, next2));
+                        mov.maybe_switch(
+                            &Between(before_pickup, after_pickup),
+                            &Between(before_delivery, after_delivery),
+                        );
                     }
 
-                    let too_late_for_delivery = delivery_eval.time > delivery_due;
+                    let too_late_for_delivery = insertion_eval.time > delivery_due;
                     if too_late_for_delivery {
                         break;
                     }
 
-                    delivery_eval.next(next2, self.data);
-                    prev2 = next2;
-                    next2 = delivery_iterator.next().unwrap_or(0);
+                    insertion_eval.next(after_delivery, self.data);
+                    before_delivery = after_delivery;
+                    after_delivery = delivery_iterator.next().unwrap_or(0);
                 }
             }
 
-            let too_late_for_pickup = !pickup_eval.is_time_feasible(self.data);
-
-            if too_late_for_pickup {
-                break;
-            }
-
-            prev = next;
+            normal_route_eval.next(after_pickup, self.data);
+            before_pickup = after_pickup;
         }
 
         mov

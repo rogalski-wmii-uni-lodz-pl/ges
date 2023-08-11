@@ -69,7 +69,7 @@ impl Eval {
         // && self.cap >= 0 this chceck is unnecessary because pickups are always before deliveries
     }
 
-    pub fn is_time_feasible(&self, data: &Data) -> bool {
-        self.time <= data.pts[self.node].due
+    pub fn arrives_too_late(&self, data: &Data) -> bool {
+        self.time > data.pts[self.node].due
     }
 }
