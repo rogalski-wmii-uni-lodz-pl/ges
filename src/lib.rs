@@ -1,77 +1,63 @@
-use std::time::Instant;
-
 use data::Data;
 use evaluator::Evaluator;
 use sol::Sol;
+use stats::Stats;
 
 pub mod data;
 pub mod eval;
 pub mod evaluator;
 pub mod mov;
 pub mod sol;
+pub mod stats;
 
 const UNSERVED: usize = usize::MAX;
-const K_MAX: usize = 3;
+const K_MAX: usize = 10;
 
 pub struct Ges<'a> {
-    ev: Evaluator<'a>,
+    evaluator: Evaluator<'a>,
+    stats: Stats,
 }
 
 impl<'a> Ges<'a> {
     pub fn new(data: &'a Data) -> Self {
         Self {
-            ev: Evaluator::new(&data),
+            evaluator: Evaluator::new(&data),
+            stats: Stats::new(),
         }
     }
 
     pub fn ges(&mut self, solution: &mut Sol) {
-        let mut total = 0;
-        let start = Instant::now();
         loop {
-            println!("routes: {}", solution.routes.iter().count());
-            let random_route_first = solution.random_route_first();
-            println!("{random_route_first:?}");
+            println!("routes: {}", solution.routes_number());
             solution.eprn();
+
+            let random_route_first = solution.random_route_first();
             solution.remove_route(random_route_first);
 
-            let mut times: u64 = 0;
-            let mut max = solution.heap_size;
-            let mut min = solution.heap_size;
+            self.stats.reset();
+            self.stats.add_iteration(solution.heap.size);
             while let Some(top) = solution.top() {
-                times += 1;
-                total += 1;
-                let maybe = solution.try_insert(top, &mut self.ev);
+                let maybe = solution.try_insert(top, &mut self.evaluator);
 
                 if let Some(mov) = maybe {
-                    max = solution.heap_size.max(max);
-                    min = solution.heap_size.min(min);
                     solution.pop();
                     solution.make_move(&mov);
                     debug_assert!(solution.check_routes());
                 } else {
                     solution.inc();
                     for _ in 0..50 {
-                        solution.perturb(&mut self.ev);
+                        solution.perturb(&mut self.evaluator);
                     }
                 }
 
-                if times % 10000 == 0 {
-                    solution.eprn();
-                    print!("{times} {min} {max}: ");
-                    solution.prn_heap();
-                }
-
-                if total % 10000 == 0 {
-                    let elapsed = start.elapsed();
-                    println!("total {total} after {elapsed:?}");
-                }
+                self.stats.add_iteration(solution.heap.size);
+                self.stats.print_occasionally(solution);
             }
 
-            println!("after {times}");
+            println!("after {}", self.stats.iterations().current());
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

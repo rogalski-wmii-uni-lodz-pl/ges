@@ -10,17 +10,22 @@ use crate::evaluator::Evaluator;
 use crate::mov::{Between, Move, Swap};
 use crate::{K_MAX, UNSERVED};
 
+use self::heap::Heap;
+
+mod heap;
+
 pub struct Sol<'a> {
     pub data: &'a Data,
     pub next: [usize; PTS],
     pub prev: [usize; PTS],
     pub latest_feasible_departure: [u64; PTS],
-    pub removed_times: [u64; PTS],
-    pub removed_idx: [usize; PTS],
     pub evals: Vec<Eval>,
-    pub heap_size: usize,
     pub first: [usize; PTS],
     pub routes: HashSet<usize>,
+    pub heap: Heap,
+    // pub removed_times: [u64; PTS],
+    // pub removed_idx: [usize; PTS],
+    // pub heap_size: usize,
 }
 
 impl<'a> Sol<'a> {
@@ -28,7 +33,6 @@ impl<'a> Sol<'a> {
         let unserved = [UNSERVED; PTS];
         let mut latest_feasible_departure = [0; PTS];
         latest_feasible_departure[0] = data.pts[0].due;
-        let removed_times = [0; PTS];
         let evals: Vec<_> = (0..PTS).map(|_| Eval::new()).collect();
 
         Sol {
@@ -36,10 +40,8 @@ impl<'a> Sol<'a> {
             next: unserved.clone(),
             prev: unserved.clone(),
             latest_feasible_departure,
-            removed_times,
-            removed_idx: unserved.clone(),
+            heap: Heap::new(),
             evals,
-            heap_size: 0,
             first: unserved.clone(),
             routes: HashSet::new(),
         }
@@ -124,32 +126,9 @@ impl<'a> Sol<'a> {
         self.next[point_idx] == UNSERVED
     }
 
-    pub fn inc(&mut self) {
-        let top = self.heap_size - 1;
-        self.removed_times[self.removed_idx[top]] += 1;
-        let mut h = top;
-        let v = self.removed_times[self.removed_idx[top]];
-        let i = self.removed_idx[top];
-        while h != 0 {
-            if self.removed_times[self.removed_idx[h - 1]] > v {
-                self.removed_idx[h] = self.removed_idx[h - 1];
-                h -= 1;
-            } else {
-                break;
-            }
-        }
-        self.removed_idx[h] = i;
-    }
 
-    pub fn prn_heap(&self) {
-        println!(
-            "{} {:?}",
-            self.routes.iter().count() + 1,
-            self.removed_idx[0..self.heap_size]
-                .iter()
-                .map(|&x| (x, self.removed_times[x]))
-                .collect_vec()
-        );
+    pub fn routes_number(&self) -> usize {
+        self.routes.iter().count()
     }
 
     pub fn perturb(&mut self, ev: &mut Evaluator) {
@@ -258,10 +237,6 @@ impl<'a> Sol<'a> {
         route_fragment == empty_route
     }
 
-    pub fn push(&mut self, idx: usize) {
-        self.removed_idx[self.heap_size] = idx;
-        self.heap_size += 1;
-    }
 
     pub fn remove_route(&mut self, first: usize) {
         debug_assert!(self.prev[first] == 0);
@@ -270,27 +245,34 @@ impl<'a> Sol<'a> {
         while idx != 0 {
             self.first[idx] = UNSERVED;
             if !self.data.pts[idx].is_delivery {
-                self.push(idx);
-                self.removed_times[idx] += 1;
+                self.heap.push(idx);
+                self.heap.removed_times[idx] += 1;
             }
             self.prev[idx] = UNSERVED;
             idx = replace(&mut self.next[idx], UNSERVED);
-            // TODO: evals?
         }
 
-        self.removed_idx[0..self.heap_size].sort_unstable_by_key(|&x| self.removed_times[x]);
+        self.heap.sort()
+    }
+
+    pub fn inc(&mut self) {
+        self.heap.inc()
+    }
+
+    pub fn prn_heap(&self) {
+        self.heap.prn();
+    }
+
+    pub fn push(&mut self, idx: usize) {
+        self.heap.push(idx)
     }
 
     pub fn top(&mut self) -> Option<usize> {
-        if self.heap_size == 0 {
-            None
-        } else {
-            Some(self.removed_idx[self.heap_size - 1])
-        }
+        self.heap.top()
     }
 
     pub fn pop(&mut self) {
-        self.heap_size -= 1
+        self.heap.pop()
     }
 
     fn get_first_after_removal(&self, pickup_idx: usize, delivery_idx: usize) -> usize {
@@ -360,25 +342,6 @@ impl<'a> Sol<'a> {
         self.prev[0] = 0;
     }
 
-    // fn get_nodes_to_recalculate_from_after_insertion(
-    //     &self,
-    //     pickup_idx: usize,
-    //     delivery_idx: usize,
-    // ) -> (usize, usize) {
-    //     let mut earliest = self.prev[pickup_idx];
-    //     let mut latest = self.next[delivery_idx];
-
-    //     if earliest == 0 {
-    //         earliest = pickup_idx;
-    //     }
-
-    //     if latest == 0 {
-    //         latest = delivery_idx;
-    //     }
-
-    //     (earliest, latest)
-    // }
-    //
     pub fn make_swap(&mut self, swap: &Swap) {
         let a_pickup_idx = swap.a.pickup;
         debug_assert!(self.next[a_pickup_idx] != UNSERVED);
@@ -426,8 +389,8 @@ impl<'a> Sol<'a> {
 
         for &removed in mov.removed.iter().filter(|&&x| x != 0) {
             self.remove_pair(removed); // TODO: inefficient, fix
-            self.push(removed);
-            self.inc();
+            self.heap.push(removed);
+            self.heap.inc();
         }
 
         self.routes.remove(&mov.put_pickup_between.0);
