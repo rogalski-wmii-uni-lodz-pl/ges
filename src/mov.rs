@@ -35,10 +35,6 @@ impl Move {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        return self.times == 0;
-    }
-
     pub fn pick(&mut self, other: &Self) {
         self.times += other.times;
         let r = rand::thread_rng().gen_range(1..=self.times);
@@ -57,6 +53,10 @@ impl Move {
             ..(if r <= other.times { other } else { self })
         }
     }
+
+    pub fn is_not_empty(&self) -> bool {
+        self.times != 0
+    }
 }
 
 pub struct Swap {
@@ -72,8 +72,8 @@ impl Swap {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.a.is_empty()
+    pub fn is_not_empty(&self) -> bool {
+        self.a.is_not_empty()
     }
 }
 
@@ -85,7 +85,7 @@ mod test {
     fn empty() {
         let m = Move::new(1);
 
-        assert!(m.is_empty());
+        assert!(!m.is_not_empty());
 
         let ne = Move {
             pickup: 1,
@@ -95,7 +95,7 @@ mod test {
             removed: [0; K_MAX],
         };
 
-        assert!(!ne.is_empty());
+        assert!(ne.is_not_empty());
     }
 
     #[test]

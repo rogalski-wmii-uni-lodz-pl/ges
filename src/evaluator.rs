@@ -2,7 +2,6 @@ use crate::data::Data;
 use crate::eval::Eval;
 use crate::mov::{Between, Move, Swap};
 use crate::{sol::Sol, UNSERVED};
-use std::ops::Not;
 
 use self::comb::Combinations;
 
@@ -38,7 +37,7 @@ impl<'a> Evaluator<'a> {
         let mut iterator = sol.route_iter(start);
         let mov = self.check_insertions_into_route(self.pickup_idx, &mut iterator, sol);
 
-        mov.is_empty().not().then_some(mov)
+        mov.is_not_empty().then_some(mov)
     }
 
     pub fn check_swap(&mut self, sol: &Sol, a_pickup: usize, b_pickup: usize) -> Option<Swap> {
@@ -50,15 +49,15 @@ impl<'a> Evaluator<'a> {
         let mut s = Swap::new(a_pickup, b_pickup);
 
         let a = self.check_remove_and_insert(sol, a_pickup, b_pickup);
-        if !a.is_empty() {
+        if a.is_not_empty() {
             let b = self.check_remove_and_insert(sol, b_pickup, a_pickup);
-            if !b.is_empty() {
+            if b.is_not_empty() {
                 s.a = a;
                 s.b = b;
             }
         }
 
-        s.is_empty().not().then_some(s)
+        s.is_not_empty().then_some(s)
     }
 
     fn check_remove_and_insert(&mut self, sol: &Sol, to_remove: usize, to_insert: usize) -> Move {
@@ -103,7 +102,7 @@ impl<'a> Evaluator<'a> {
                     sol,
                 );
 
-                if !m.is_empty() {
+                if m.is_not_empty() {
                     m.removed[..k].copy_from_slice(self.combinations.removed());
                     mov.pick(&m)
                 }
@@ -114,7 +113,7 @@ impl<'a> Evaluator<'a> {
             }
         }
 
-        mov.is_empty().not().then_some(mov)
+        mov.is_not_empty().then_some(mov)
     }
 
     fn check_insertions_into_route<ClonableIterator: Iterator<Item = usize> + Clone>(

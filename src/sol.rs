@@ -4,7 +4,7 @@ use itertools::Itertools;
 use rand::seq::IteratorRandom;
 use rand::Rng;
 
-use crate::data::{idx, Data, PTS};
+use crate::data::{Data, PTS};
 use crate::eval::Eval;
 use crate::evaluator::Evaluator;
 use crate::mov::{Between, Move, Swap};
@@ -67,9 +67,9 @@ impl<'a> Sol<'a> {
         let mut latest_feasible_departure = self.latest_feasible_departure[after_node];
 
         while node != 0 {
-            let drive_time = self.data.time[idx(node, after_node)];
-            latest_feasible_departure = latest_feasible_departure - drive_time;
-            latest_feasible_departure = std::cmp::min(pts[node].due, latest_feasible_departure);
+            latest_feasible_departure =
+                latest_feasible_departure - self.data.time_between(node, after_node);
+            latest_feasible_departure = pts[node].due.min(latest_feasible_departure);
             self.latest_feasible_departure[node] = latest_feasible_departure;
             after_node = node;
             node = self.prev[node];
@@ -93,13 +93,15 @@ impl<'a> Sol<'a> {
 
         self.routes.insert(first_non_depot);
 
-        debug_assert!({
-            let mut e = Eval::new();
-            route.iter().fold(true, |acc, &n| {
-                e.next(n, self.data);
-                acc && e.time <= self.latest_feasible_departure[n]
-            })
-        });
+        debug_assert!(self.check_if_route_was_correctly_calcualted(route));
+    }
+
+    fn check_if_route_was_correctly_calcualted(&mut self, route: &Vec<usize>) -> bool {
+        let mut e = Eval::new();
+        route.iter().fold(true, |acc, &n| {
+            e.next(n, self.data);
+            acc && e.time <= self.latest_feasible_departure[n]
+        })
     }
 
     pub fn is_removed(&self, point_idx: usize) -> bool {
@@ -115,11 +117,20 @@ impl<'a> Sol<'a> {
             self.random_move(ev);
         } else {
             self.random_swap(ev);
-            // self.random_move(ev);
         }
     }
 
     fn random_swap(&mut self, ev: &mut Evaluator<'_>) {
+        let (a_pickup, b_pickup) = self.get_two_random_pickups_in_different_routes();
+
+        let maybe = ev.check_swap(self, a_pickup, b_pickup);
+
+        if let Some(swap) = maybe {
+            self.make_swap(&swap);
+        }
+    }
+
+    fn get_two_random_pickups_in_different_routes(&mut self) -> (usize, usize) {
         let mut a_pickup = self.random_pickup();
         let mut b_pickup = self.random_pickup();
 
@@ -127,12 +138,7 @@ impl<'a> Sol<'a> {
             a_pickup = self.random_pickup();
             b_pickup = self.random_pickup();
         }
-
-        let maybe = ev.check_swap(self, a_pickup, b_pickup);
-
-        if let Some(swap) = maybe {
-            self.make_swap(&swap);
-        }
+        (a_pickup, b_pickup)
     }
 
     fn in_same_route(&mut self, a_pickup: usize, b_pickup: usize) -> bool {
