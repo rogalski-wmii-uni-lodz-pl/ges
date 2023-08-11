@@ -18,20 +18,35 @@ impl Heap {
     }
 
     pub fn inc(&mut self) {
+        self.inc_removed_times_of_top();
+        self.slide_top_into_correct_place();
+
+        debug_assert!(self.check_if_is_sorted());
+    }
+
+    fn inc_removed_times_of_top(&mut self) {
+        self.removed_times[self.removed_idx[self.size - 1]] += 1;
+    }
+
+    fn check_if_is_sorted(&mut self) -> bool {
+        self.removed_idx[..self.size]
+            .iter()
+            .map(|&x| self.removed_times[x])
+            .tuple_windows()
+            .all(|(p, n)| p <= n)
+    }
+
+    fn slide_top_into_correct_place(&mut self) {
         let top = self.size - 1;
-        self.removed_times[self.removed_idx[top]] += 1;
-        let mut h = top;
-        let v = self.removed_times[self.removed_idx[top]];
-        let i = self.removed_idx[top];
-        while h != 0 {
-            if self.removed_times[self.removed_idx[h - 1]] > v {
-                self.removed_idx[h] = self.removed_idx[h - 1];
-                h -= 1;
-            } else {
-                break;
-            }
+        let top_removed_times = self.removed_times[self.removed_idx[top]];
+
+        let mut cur = top;
+
+        while cur != 0 && self.removed_times[self.removed_idx[cur - 1]] > top_removed_times {
+            cur -= 1;
         }
-        self.removed_idx[h] = i;
+
+        self.removed_idx[cur..=top].rotate_right(1);
     }
 
     pub fn prn(&self) {
