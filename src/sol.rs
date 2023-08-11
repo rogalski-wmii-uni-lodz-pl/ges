@@ -131,14 +131,14 @@ impl<'a> Sol<'a> {
     }
 
     fn get_two_random_pickups_in_different_routes(&mut self) -> (usize, usize) {
-        let mut a_pickup = self.random_pickup();
-        let mut b_pickup = self.random_pickup();
+        let mut a = self.random_pickup();
+        let mut b = self.random_pickup();
 
-        while b_pickup == a_pickup || self.in_same_route(a_pickup, b_pickup) {
-            a_pickup = self.random_pickup();
-            b_pickup = self.random_pickup();
+        while b == a || self.in_same_route(a, b) {
+            a = self.random_pickup();
+            b = self.random_pickup();
         }
-        (a_pickup, b_pickup)
+        (a, b)
     }
 
     fn in_same_route(&mut self, a_pickup: usize, b_pickup: usize) -> bool {
@@ -152,7 +152,6 @@ impl<'a> Sol<'a> {
 
         let mov = self.try_insert_1(pickup, ev);
         debug_assert!(mov.is_some());
-        // debug_assert!(mov.unwrap().removed == [0; K_MAX]);
         self.make_move(&mov.unwrap());
     }
 
@@ -202,10 +201,7 @@ impl<'a> Sol<'a> {
 
     pub fn try_insert(&self, pickup: usize, ev: &mut Evaluator) -> Option<Move> {
         ev.reset(pickup);
-
-        let mov = self.try_insert_1(pickup, ev);
-
-        mov.or_else(|| self.try_insert_k(pickup, ev))
+        self.try_insert_1(pickup, ev).or_else(|| self.try_insert_k(pickup, ev))
     }
 
     pub fn only_pickup_in_route(&self, pickup: usize) -> bool {

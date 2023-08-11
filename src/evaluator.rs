@@ -88,11 +88,12 @@ impl<'a> Evaluator<'a> {
         if not_removing_whole_route {
             let pickup_removed_times = sol.removed_times(self.pickup_idx);
 
-            let mut ok = if self.combinations.cur_removed_times_total >= pickup_removed_times {
-                self.combinations
+            let mut ok = true;
+
+            if self.combinations.cur_removed_times_total >= pickup_removed_times {
+                ok = self
+                    .combinations
                     .next_combination_with_lower_score(pickup_removed_times)
-            } else {
-                true
             };
 
             while ok {
