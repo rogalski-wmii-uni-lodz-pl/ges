@@ -106,7 +106,19 @@ impl Stats {
         }
     }
 
+    pub fn print_after_route_removal(&self) {
+        println!(
+            "after {}, {:?}",
+            self.iterations().current(),
+            self.time.route_start.elapsed()
+        );
+    }
+
     pub fn iterations(&self) -> &Iterations {
         &self.iterations
+    }
+
+    pub fn total_time(&self) -> std::time::Duration {
+        self.time.start.elapsed()
     }
 }
