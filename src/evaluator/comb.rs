@@ -12,17 +12,15 @@ pub struct PairInfo {
     idx: usize,
     pair_idx: usize,
     removed_times: u64,
-    delivery: bool,
 }
 
 impl PairInfo {
-    pub fn new(id: usize, idx: usize, pair_idx: usize, removed_times: u64, delivery: bool) -> Self {
+    pub fn new(id: usize, idx: usize, pair_idx: usize, removed_times: u64) -> Self {
         Self {
             id,
             idx,
             pair_idx,
             removed_times,
-            delivery,
         }
     }
 
@@ -38,7 +36,6 @@ impl Default for PairInfo {
             idx: UNSERVED,
             pair_idx: UNSERVED,
             removed_times: 0,
-            delivery: false,
         }
     }
 }
@@ -49,17 +46,15 @@ pub struct Combinations {
     pub cur_removed_times_total: u64,
     pub route: [PairInfo; PTS],
     pub route_position: [usize; PTS],
-    // pub combination_indices: [usize; K_MAX + 1],
-    // pub removed: [usize; K_MAX],
     pub pickups: [PairInfo; PTS / 2],
-    pub combination_indices2: [usize; K_MAX + 1],
+    pub combination_indices: [usize; K_MAX + 1],
     pub sum_of_next: [[u64; K_MAX + 1]; PTS],
 }
 
 impl Combinations {
     pub fn new() -> Self {
         let mut route = [Default::default(); PTS];
-        route[0] = PairInfo::new(0, 0, 0, 0, false);
+        route[0] = PairInfo::new(0, 0, 0, 0);
 
         Self {
             k: 0,
@@ -67,10 +62,8 @@ impl Combinations {
             cur_removed_times_total: 0,
             route,
             route_position: [UNSERVED; PTS],
-            // combination_indices: [UNSERVED; K_MAX + 1],
-            // removed: [UNSERVED; K_MAX],
             pickups: [Default::default(); PTS / 2],
-            combination_indices2: [UNSERVED; K_MAX + 1],
+            combination_indices: [UNSERVED; K_MAX + 1],
             sum_of_next: [[u64::max_value(); K_MAX + 1]; PTS],
         }
     }
@@ -79,6 +72,7 @@ impl Combinations {
         self.k = k;
         self.fill_route_indices_and_set_len(route_start, sol);
         self.copy_pair_info(route_start, sol);
+        self.calculate_sum_of_next_k();
         self.initialize_combination_indices();
     }
 
@@ -106,7 +100,6 @@ impl Combinations {
                 self.route_position[cur],
                 self.route_position[pt.pair],
                 sol.removed_times(cur),
-                pt.is_delivery,
             );
 
             if !pt.is_delivery {
@@ -127,16 +120,23 @@ impl Combinations {
         };
 
         self.pickups[0..pickup].sort_unstable_by_key(|x| x.removed_times);
+    }
 
-        for i in 0..pickup {
-            for k in 0..=(self.k).min(pickup - i) {
-                // perhaps start at 2?
+    fn calculate_sum_of_next_k(&mut self) {
+        let pickups_len = self.pickups_len();
+        for i in 0..pickups_len {
+            for k in 0..=self.k.min(pickups_len - i) {
+                // perhaps start at 1?
                 self.sum_of_next[i][k] = self.pickups[(i + 1)..(i + 1 + k)]
                     .iter()
                     .map(|x| x.removed_times)
                     .sum();
             }
         }
+    }
+
+    fn pickups_len(&mut self) -> usize {
+        (self.route_len - 2) / 2
     }
 
     fn initialize_combination_indices(&mut self) {
@@ -147,39 +147,21 @@ impl Combinations {
     }
 
     fn set_initial_position_of_indices(&mut self) {
-        // let mut cur = 1;
-        // for idx in 0..self.k {
-        //     while self.route[cur].delivery {
-        //         cur += 1;
-        //     }
-
-        //     // self.set_index_and_removed(idx, cur);
-        //     cur += 1;
-        // }
-
         for i in 0..self.k {
-            self.combination_indices2[i] = i;
+            self.combination_indices[i] = i;
         }
     }
-
-    // fn set_index_and_removed(&mut self, idx: usize, next_pickup_idx: usize) {
-    //     // self.combination_indices[idx] = next_pickup_idx;
-    //     // self.removed[idx] = self.route[next_pickup_idx].idx;
-    // }
-
     fn set_k_plus_1_guard_value(&mut self) {
-        // self.combination_indices[self.k] = self.route_len - 1;
-        self.combination_indices2[self.k] = (self.route_len - 2) / 2;
+        self.combination_indices[self.k] = self.pickups_len()
     }
 
     fn fill_rest_of_combination_indices(&mut self) {
-        // self.combination_indices[self.k + 1..=K_MAX].fill(UNSERVED);
-        self.combination_indices2[self.k + 1..=K_MAX].fill(UNSERVED);
+        self.combination_indices[self.k + 1..=K_MAX].fill(UNSERVED);
     }
 
-    pub fn is_removed(&self, x: usize) -> bool {
+    fn is_removed(&self, x: usize) -> bool {
         for i in 0..self.k {
-            let pickup = self.pickups[self.combination_indices2[i]];
+            let pickup = self.pickups[self.combination_indices[i]];
             let delivery = self.route[pickup.pair_idx].id;
 
             if x == pickup.id || x == delivery {
@@ -188,14 +170,10 @@ impl Combinations {
         }
 
         return false;
-        // self.combination_indices2[0..self.k].contains(i)
-        //     || self.combination_indices2[0..self.k]
-        //         .iter()
-        //         .any(|iter| *i == self.route[*iter].pair_idx)
     }
 
     fn initialize_removed_times_sum(&mut self) {
-        self.cur_removed_times_total = self.combination_indices2[0..self.k]
+        self.cur_removed_times_total = self.combination_indices[0..self.k]
             .iter()
             .map(|&x| self.pickups[x].removed_times)
             .sum();
@@ -210,23 +188,26 @@ impl Combinations {
     }
 
     pub fn next_combination_with_lower_score(&mut self, target_score: u64) -> bool {
-        let mut sub = 0;
+        let mut sum_of_removed_times_of_combination_indices_i_to_k = 0;
         for i in (0..self.k).rev() {
-            sub += self.pickups[self.combination_indices2[i]].removed_times;
-            if self.combination_indices2[i] + 1 != self.combination_indices2[i + 1] {
+            sum_of_removed_times_of_combination_indices_i_to_k +=
+                self.pickups[self.combination_indices[i]].removed_times;
+
+            let can_advance_ith_iterator_one_position =
+                self.combination_indices[i] + 1 != self.combination_indices[i + 1];
+
+            if can_advance_ith_iterator_one_position {
                 let new_sum = self.cur_removed_times_total
-                    - sub
-                    + self.sum_of_next[self.combination_indices2[i]][self.k - i];
+                    - sum_of_removed_times_of_combination_indices_i_to_k
+                    + self.sum_of_next[self.combination_indices[i]][self.k - i];
 
                 if new_sum < target_score {
-                    let ith = self.combination_indices2[i];
+                    let after_i = self.combination_indices[i] + 1;
                     for j in i..self.k {
-                        self.combination_indices2[j] = ith + (j - i) + 1;
+                        self.combination_indices[j] = after_i + (j - i);
                     }
                     self.cur_removed_times_total = new_sum;
                     return true;
-                } else {
-                    return false;
                 }
             }
         }
@@ -234,49 +215,8 @@ impl Combinations {
         false
     }
 
-    // fn next_combination(&mut self) -> bool {
-    //     for cur in (0..self.k).rev() {
-    //         // let next_pickup = self.next_pickup_after(self.combination_indices[cur]);
-    //         // let next_pickup_is_not_removed = next_pickup != self.combination_indices[cur + 1];
-
-    //         // if next_pickup_is_not_removed {
-    //         //     self.change_index_and_removed(cur, next_pickup);
-    //         //     self.set_indices_larger_than_idx(cur);
-
-    //         //     return true;
-    //         // }
-    //     }
-
-    //     false
-    // }
-
-    // fn set_indices_larger_than_idx(&mut self, idx: usize) {
-    //     let mut cur = self.combination_indices[idx];
-    //     for it in idx + 1..self.k {
-    //         cur = self.next_pickup_after(cur);
-    //         self.change_index_and_removed(it, cur);
-    //     }
-    // }
-
-    // fn change_index_and_removed(&mut self, idx: usize, next_pickup_idx: usize) {
-    //     self.cur_removed_times_total -= self.route[self.combination_indices[idx]].removed_times;
-    //     self.cur_removed_times_total += self.route[next_pickup_idx].removed_times;
-
-    //     self.set_index_and_removed(idx, next_pickup_idx);
-    // }
-
-    pub fn next_pickup_after(&self, idx: usize) -> usize {
-        let mut idx = idx + 1;
-
-        while self.route[idx].delivery {
-            idx += 1
-        }
-
-        idx
-    }
-
     pub fn removed_idxs(&self) -> &[usize] {
-        &self.combination_indices2[0..self.k]
+        &self.combination_indices[0..self.k]
     }
 
     pub fn pickups(&self) -> &[PairInfo] {
@@ -287,42 +227,46 @@ impl Combinations {
 #[derive(Clone, Copy)]
 pub struct CombinationIterator<'a> {
     comb: &'a Combinations,
-    removed: [usize; 2 * K_MAX],
-    removed_idx: usize,
+    route_indices_to_skip: [usize; 2 * K_MAX],
+    next_to_skip_idx: usize,
     cur: usize,
 }
 
 impl<'a> CombinationIterator<'a> {
     pub fn new(comb: &'a Combinations) -> Self {
-        let mut removed = [0; 2 * K_MAX];
-        for (i, &r) in comb.removed_idxs().iter().enumerate() {
-            let pickup = &comb.pickups()[r];
-            removed[2 * i] = pickup.idx;
-            removed[2 * i + 1] = pickup.pair_idx;
-        }
-
-        removed[0..(2 * comb.k)].sort();
-
         let mut s = Self {
             comb,
-            removed,
-            removed_idx: 0,
+            route_indices_to_skip: CombinationIterator::prepare_skip_list(comb),
+            next_to_skip_idx: 0,
             cur: 1,
         };
 
-        s.adv();
+        s.skip_indices_if_cur_on_skip_list();
 
         s
     }
 
-    fn adv(&mut self) {
+    fn skip_indices_if_cur_on_skip_list(&mut self) {
         while self.cur < self.comb.route_len - 1
-            && self.removed_idx < 2 * K_MAX
-            && self.removed[self.removed_idx] == self.cur
+            && self.next_to_skip_idx < 2 * K_MAX
+            && self.route_indices_to_skip[self.next_to_skip_idx] == self.cur
         {
             self.cur += 1;
-            self.removed_idx += 1;
+            self.next_to_skip_idx += 1;
         }
+    }
+
+    fn prepare_skip_list(comb: &Combinations) -> [usize; 2 * K_MAX] {
+        let mut skip_list = [0; 2 * K_MAX];
+
+        for (i, &r) in comb.removed_idxs().iter().enumerate() {
+            let pickup = &comb.pickups()[r];
+            skip_list[2 * i] = pickup.idx;
+            skip_list[2 * i + 1] = pickup.pair_idx;
+        }
+
+        skip_list[0..(2 * comb.k)].sort_unstable();
+        skip_list
     }
 }
 
@@ -333,7 +277,7 @@ impl<'a> Iterator for CombinationIterator<'a> {
         let res = (self.cur < self.comb.route_len).then_some(self.comb.route[self.cur].id);
 
         self.cur += 1;
-        self.adv();
+        self.skip_indices_if_cur_on_skip_list();
 
         res
     }
@@ -395,8 +339,8 @@ mod test {
 
         assert_eq!(c.k, 1);
         assert_eq!(c.route_len, 14);
-        assert_eq!(c.combination_indices2[0], 0);
-        assert_eq!(c.combination_indices2[1], 6);
+        assert_eq!(c.combination_indices[0], 0);
+        assert_eq!(c.combination_indices[1], 6);
         assert_eq!(c.sum_of_next[0][0], 0);
         assert_eq!(c.sum_of_next[0][1], 0);
 
@@ -418,9 +362,9 @@ mod test {
 
         assert_eq!(c.k, 2);
         assert_eq!(c.route_len, 14);
-        assert_eq!(c.combination_indices2[0], 0);
-        assert_eq!(c.combination_indices2[1], 1);
-        assert_eq!(c.combination_indices2[2], 6);
+        assert_eq!(c.combination_indices[0], 0);
+        assert_eq!(c.combination_indices[1], 1);
+        assert_eq!(c.combination_indices[2], 6);
 
         let nexts = vec![
             LeftRemoved(vec![5, 6, 7, 8, 9, 10, 11, 12, 0], vec![0, 1]),
@@ -449,8 +393,8 @@ mod test {
         c.k_combinations_of_route(&sol, 1, 1);
         assert_eq!(c.k, 1);
         assert_eq!(c.route_len, 14);
-        assert_eq!(c.combination_indices2[0], 0);
-        assert_eq!(c.combination_indices2[1], 6);
+        assert_eq!(c.combination_indices[0], 0);
+        assert_eq!(c.combination_indices[1], 6);
 
         let nexts = vec![
             LeftRemoved(vec![3, 5, 4, 6, 7, 8, 9, 10, 11, 12, 0], vec![0]),
@@ -491,8 +435,8 @@ mod test {
         for (i, LeftRemoved(next, removed)) in nexts.iter().enumerate() {
             dbg!(next);
             dbg!(c.r());
-            dbg!(c.into_iter().removed);
-            dbg!(c.combination_indices2);
+            dbg!(c.into_iter().route_indices_to_skip);
+            dbg!(c.combination_indices);
             assert_eq!(c.r(), *next);
             assert_eq!(c.into_iter().collect_vec(), *next);
             // assert_eq!(c.removed(), *removed);
@@ -503,8 +447,11 @@ mod test {
                 // .map(|x| *x)
                 .collect_vec();
             assert_eq!(removed2, *removed);
-            assert_eq!(c.next_combination_with_lower_score(u64::max_value()), i != nexts.len() - 1);
-            dbg!(c.combination_indices2);
+            assert_eq!(
+                c.next_combination_with_lower_score(u64::max_value()),
+                i != nexts.len() - 1
+            );
+            dbg!(c.combination_indices);
         }
     }
 }
