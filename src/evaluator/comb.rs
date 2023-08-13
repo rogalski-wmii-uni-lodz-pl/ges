@@ -129,9 +129,9 @@ impl Combinations {
         self.pickups[0..pickup].sort_unstable_by_key(|x| x.removed_times);
 
         for i in 0..pickup {
-            for k in 0..(self.k + 1).min(pickup - i) {
+            for k in 0..=(self.k).min(pickup - i) {
                 // perhaps start at 2?
-                self.sum_of_next[i][k] = self.pickups[i..(i + k)]
+                self.sum_of_next[i][k] = self.pickups[(i + 1)..(i + 1 + k)]
                     .iter()
                     .map(|x| x.removed_times)
                     .sum();
@@ -197,7 +197,7 @@ impl Combinations {
     fn initialize_removed_times_sum(&mut self) {
         self.cur_removed_times_total = self.combination_indices2[0..self.k]
             .iter()
-            .map(|&x| self.route[self.pickups[x].id].removed_times)
+            .map(|&x| self.pickups[x].removed_times)
             .sum();
     }
 

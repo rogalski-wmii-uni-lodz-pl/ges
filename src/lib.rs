@@ -41,6 +41,7 @@ impl<'a> Ges<'a> {
                 };
                 print!("routes: {} ", routes + rs);
                 self.stats.print_after_route_removal();
+                solution.eprn();
                 break;
             }
 
