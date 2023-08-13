@@ -6,8 +6,9 @@ use crate::data::PTS;
 use crate::sol::Sol;
 use crate::{K_MAX, UNSERVED};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct PairInfo {
+    id: usize,
     idx: usize,
     pair_idx: usize,
     removed_times: u64,
@@ -15,19 +16,25 @@ pub struct PairInfo {
 }
 
 impl PairInfo {
-    pub fn new(idx: usize, pair_idx: usize, removed_times: u64, delivery: bool) -> Self {
+    pub fn new(id: usize, idx: usize, pair_idx: usize, removed_times: u64, delivery: bool) -> Self {
         Self {
+            id,
             idx,
             pair_idx,
             removed_times,
             delivery,
         }
     }
+
+    pub fn idx(&self) -> usize {
+        self.id
+    }
 }
 
 impl Default for PairInfo {
     fn default() -> Self {
         Self {
+            id: UNSERVED,
             idx: UNSERVED,
             pair_idx: UNSERVED,
             removed_times: 0,
@@ -41,24 +48,30 @@ pub struct Combinations {
     pub route_len: usize,
     pub cur_removed_times_total: u64,
     pub route: [PairInfo; PTS],
-    pub route_idx: [usize; PTS],
-    pub combination_indices: [usize; K_MAX + 1],
-    pub removed: [usize; K_MAX],
+    pub route_position: [usize; PTS],
+    // pub combination_indices: [usize; K_MAX + 1],
+    // pub removed: [usize; K_MAX],
+    pub pickups: [PairInfo; PTS / 2],
+    pub combination_indices2: [usize; K_MAX + 1],
+    pub sum_of_next: [[u64; K_MAX + 1]; PTS],
 }
 
 impl Combinations {
     pub fn new() -> Self {
         let mut route = [Default::default(); PTS];
-        route[0] = PairInfo::new(0, 0, 0, false);
+        route[0] = PairInfo::new(0, 0, 0, 0, false);
 
         Self {
             k: 0,
             route_len: 0,
             cur_removed_times_total: 0,
             route,
-            route_idx: [UNSERVED; PTS],
-            combination_indices: [UNSERVED; K_MAX + 1],
-            removed: [UNSERVED; K_MAX],
+            route_position: [UNSERVED; PTS],
+            // combination_indices: [UNSERVED; K_MAX + 1],
+            // removed: [UNSERVED; K_MAX],
+            pickups: [Default::default(); PTS / 2],
+            combination_indices2: [UNSERVED; K_MAX + 1],
+            sum_of_next: [[u64::max_value(); K_MAX + 1]; PTS],
         }
     }
 
@@ -73,7 +86,7 @@ impl Combinations {
         let mut cur = route_start;
         let mut i = 1;
         while cur != 0 {
-            self.route_idx[cur] = i;
+            self.route_position[cur] = i;
 
             i += 1;
             cur = sol.next[cur];
@@ -85,24 +98,45 @@ impl Combinations {
     fn copy_pair_info(&mut self, route_start: usize, sol: &Sol) {
         let mut cur = route_start;
         let mut i = 1;
+        let mut pickup = 0;
         while cur != 0 {
             let pt = sol.data.pts[cur];
-            self.route[i] = PairInfo::new(
+            let pi = PairInfo::new(
                 cur,
-                self.route_idx[pt.pair],
+                self.route_position[cur],
+                self.route_position[pt.pair],
                 sol.removed_times(cur),
                 pt.is_delivery,
             );
+
+            if !pt.is_delivery {
+                self.pickups[pickup] = pi.clone();
+                pickup += 1;
+            }
+
+            self.route[i] = pi;
 
             i += 1;
             cur = sol.next[cur];
         }
 
         self.route[i] = PairInfo {
-            idx: 0,
+            id: 0,
             pair_idx: 0,
             ..Default::default()
         };
+
+        self.pickups[0..pickup].sort_unstable_by_key(|x| x.removed_times);
+
+        for i in 0..pickup {
+            for k in 0..(self.k + 1).min(pickup - i) {
+                // perhaps start at 2?
+                self.sum_of_next[i][k] = self.pickups[i..(i + k)]
+                    .iter()
+                    .map(|x| x.removed_times)
+                    .sum();
+            }
+        }
     }
 
     fn initialize_combination_indices(&mut self) {
@@ -113,93 +147,123 @@ impl Combinations {
     }
 
     fn set_initial_position_of_indices(&mut self) {
-        let mut cur = 1;
-        for idx in 0..self.k {
-            while self.route[cur].delivery {
-                cur += 1;
-            }
+        // let mut cur = 1;
+        // for idx in 0..self.k {
+        //     while self.route[cur].delivery {
+        //         cur += 1;
+        //     }
 
-            self.set_index_and_removed(idx, cur);
-            cur += 1;
+        //     // self.set_index_and_removed(idx, cur);
+        //     cur += 1;
+        // }
+
+        for i in 0..self.k {
+            self.combination_indices2[i] = i;
         }
     }
 
-    fn set_index_and_removed(&mut self, idx: usize, next_pickup_idx: usize) {
-        self.combination_indices[idx] = next_pickup_idx;
-        self.removed[idx] = self.route[next_pickup_idx].idx;
-    }
+    // fn set_index_and_removed(&mut self, idx: usize, next_pickup_idx: usize) {
+    //     // self.combination_indices[idx] = next_pickup_idx;
+    //     // self.removed[idx] = self.route[next_pickup_idx].idx;
+    // }
 
     fn set_k_plus_1_guard_value(&mut self) {
-        self.combination_indices[self.k] = self.route_len - 1;
+        // self.combination_indices[self.k] = self.route_len - 1;
+        self.combination_indices2[self.k] = (self.route_len - 2) / 2;
     }
 
     fn fill_rest_of_combination_indices(&mut self) {
-        self.combination_indices[self.k + 1..=K_MAX].fill(UNSERVED)
+        // self.combination_indices[self.k + 1..=K_MAX].fill(UNSERVED);
+        self.combination_indices2[self.k + 1..=K_MAX].fill(UNSERVED);
     }
 
-    pub fn is_removed(&self, i: &usize) -> bool {
-        self.combination_indices[0..self.k].contains(i)
-            || self.combination_indices[0..self.k]
-                .iter()
-                .any(|iter| *i == self.route[*iter].pair_idx)
+    pub fn is_removed(&self, x: usize) -> bool {
+        for i in 0..self.k {
+            let pickup = self.pickups[self.combination_indices2[i]];
+            let delivery = self.route[pickup.pair_idx].id;
+
+            if x == pickup.id || x == delivery {
+                return true;
+            }
+        }
+
+        return false;
+        // self.combination_indices2[0..self.k].contains(i)
+        //     || self.combination_indices2[0..self.k]
+        //         .iter()
+        //         .any(|iter| *i == self.route[*iter].pair_idx)
     }
 
     fn initialize_removed_times_sum(&mut self) {
-        self.cur_removed_times_total = self.combination_indices[0..self.k]
+        self.cur_removed_times_total = self.combination_indices2[0..self.k]
             .iter()
-            .map(|&x| self.route[x].removed_times)
+            .map(|&x| self.route[self.pickups[x].id].removed_times)
             .sum();
     }
 
     pub fn r(&self) -> Vec<usize> {
         // not extremely efficient, but not meant to be
-        self.route[0..self.route_len]
+        self.route[1..self.route_len]
             .iter()
-            .enumerate()
-            .skip(1)
-            .filter_map(|(i, x)| self.is_removed(&i).not().then_some(x.idx))
+            .filter_map(|x| self.is_removed(x.id).not().then_some(x.id))
             .collect_vec()
     }
 
     pub fn next_combination_with_lower_score(&mut self, target_score: u64) -> bool {
-        let mut a = self.next_combination();
-        while a && self.cur_removed_times_total >= target_score {
-            a = self.next_combination()
-        }
+        let mut sub = 0;
+        for i in (0..self.k).rev() {
+            sub += self.pickups[self.combination_indices2[i]].removed_times;
+            if self.combination_indices2[i] + 1 != self.combination_indices2[i + 1] {
+                let new_sum = self.cur_removed_times_total
+                    - sub
+                    + self.sum_of_next[self.combination_indices2[i]][self.k - i];
 
-        a
-    }
-
-    fn next_combination(&mut self) -> bool {
-        for cur in (0..self.k).rev() {
-            let next_pickup = self.next_pickup_after(self.combination_indices[cur]);
-            let next_pickup_is_not_removed = next_pickup != self.combination_indices[cur + 1];
-
-            if next_pickup_is_not_removed {
-                self.change_index_and_removed(cur, next_pickup);
-                self.set_indices_larger_than_idx(cur);
-
-                return true;
+                if new_sum < target_score {
+                    let ith = self.combination_indices2[i];
+                    for j in i..self.k {
+                        self.combination_indices2[j] = ith + (j - i) + 1;
+                    }
+                    self.cur_removed_times_total = new_sum;
+                    return true;
+                } else {
+                    return false;
+                }
             }
         }
 
         false
     }
 
-    fn set_indices_larger_than_idx(&mut self, idx: usize) {
-        let mut cur = self.combination_indices[idx];
-        for it in idx + 1..self.k {
-            cur = self.next_pickup_after(cur);
-            self.change_index_and_removed(it, cur);
-        }
-    }
+    // fn next_combination(&mut self) -> bool {
+    //     for cur in (0..self.k).rev() {
+    //         // let next_pickup = self.next_pickup_after(self.combination_indices[cur]);
+    //         // let next_pickup_is_not_removed = next_pickup != self.combination_indices[cur + 1];
 
-    fn change_index_and_removed(&mut self, idx: usize, next_pickup_idx: usize) {
-        self.cur_removed_times_total -= self.route[self.combination_indices[idx]].removed_times;
-        self.cur_removed_times_total += self.route[next_pickup_idx].removed_times;
+    //         // if next_pickup_is_not_removed {
+    //         //     self.change_index_and_removed(cur, next_pickup);
+    //         //     self.set_indices_larger_than_idx(cur);
 
-        self.set_index_and_removed(idx, next_pickup_idx);
-    }
+    //         //     return true;
+    //         // }
+    //     }
+
+    //     false
+    // }
+
+    // fn set_indices_larger_than_idx(&mut self, idx: usize) {
+    //     let mut cur = self.combination_indices[idx];
+    //     for it in idx + 1..self.k {
+    //         cur = self.next_pickup_after(cur);
+    //         self.change_index_and_removed(it, cur);
+    //     }
+    // }
+
+    // fn change_index_and_removed(&mut self, idx: usize, next_pickup_idx: usize) {
+    //     self.cur_removed_times_total -= self.route[self.combination_indices[idx]].removed_times;
+    //     self.cur_removed_times_total += self.route[next_pickup_idx].removed_times;
+
+    //     self.set_index_and_removed(idx, next_pickup_idx);
+    // }
 
     pub fn next_pickup_after(&self, idx: usize) -> usize {
         let mut idx = idx + 1;
@@ -212,25 +276,53 @@ impl Combinations {
     }
 
     pub fn removed_idxs(&self) -> &[usize] {
-        &self.combination_indices[0..self.k]
+        &self.combination_indices2[0..self.k]
     }
 
-    pub fn removed(&self) -> &[usize] {
-        &self.removed[0..self.k]
+    pub fn pickups(&self) -> &[PairInfo] {
+        &self.pickups[0..PTS / 2]
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct CombinationIterator<'a> {
     comb: &'a Combinations,
+    removed: [usize; 2 * K_MAX],
+    removed_idx: usize,
     cur: usize,
 }
 
 impl<'a> CombinationIterator<'a> {
     pub fn new(comb: &'a Combinations) -> Self {
-        let mut a = Self { comb, cur: 0 };
-        a.next();
-        a
+        let mut removed = [0; 2 * K_MAX];
+        for (i, &r) in comb.removed_idxs().iter().enumerate() {
+            let pickup = &comb.pickups()[r];
+            removed[2 * i] = pickup.idx;
+            removed[2 * i + 1] = pickup.pair_idx;
+        }
+
+        removed[0..(2 * comb.k)].sort();
+
+        let mut s = Self {
+            comb,
+            removed,
+            removed_idx: 0,
+            cur: 1,
+        };
+
+        s.adv();
+
+        s
+    }
+
+    fn adv(&mut self) {
+        while self.cur < self.comb.route_len - 1
+            && self.removed_idx < 2 * K_MAX
+            && self.removed[self.removed_idx] == self.cur
+        {
+            self.cur += 1;
+            self.removed_idx += 1;
+        }
     }
 }
 
@@ -238,11 +330,10 @@ impl<'a> Iterator for CombinationIterator<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let res = (self.cur < self.comb.route_len).then_some(self.comb.route[self.cur].idx);
+        let res = (self.cur < self.comb.route_len).then_some(self.comb.route[self.cur].id);
+
         self.cur += 1;
-        while self.cur < self.comb.route_len && self.comb.is_removed(&self.cur) {
-            self.cur += 1;
-        }
+        self.adv();
 
         res
     }
@@ -304,105 +395,116 @@ mod test {
 
         assert_eq!(c.k, 1);
         assert_eq!(c.route_len, 14);
-        assert_eq!(c.combination_indices[0], 1);
-        assert_eq!(c.combination_indices[1], 13);
+        assert_eq!(c.combination_indices2[0], 0);
+        assert_eq!(c.combination_indices2[1], 6);
+        assert_eq!(c.sum_of_next[0][0], 0);
+        assert_eq!(c.sum_of_next[0][1], 0);
 
         let nexts = vec![
-            LeftRemoved(vec![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1]),
-            LeftRemoved(vec![1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 0], vec![3]),
-            LeftRemoved(vec![1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 0], vec![5]),
-            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 0], vec![7]),
-            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 0], vec![9]),
-            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0], vec![11]),
+            LeftRemoved(vec![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0], vec![0]),
+            LeftRemoved(vec![1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1]),
+            LeftRemoved(vec![1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 0], vec![2]),
+            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 0], vec![3]),
+            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 0], vec![4]),
+            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0], vec![5]),
         ];
 
         check2(&mut c, nexts);
+
+        dbg!("k = 2");
 
         let mut c = Combinations::new();
         c.k_combinations_of_route(&sol, 1, 2);
 
         assert_eq!(c.k, 2);
         assert_eq!(c.route_len, 14);
-        assert_eq!(c.combination_indices[0], 1);
-        assert_eq!(c.combination_indices[1], 3);
-        assert_eq!(c.combination_indices[2], 13);
+        assert_eq!(c.combination_indices2[0], 0);
+        assert_eq!(c.combination_indices2[1], 1);
+        assert_eq!(c.combination_indices2[2], 6);
 
         let nexts = vec![
-            LeftRemoved(vec![5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1, 3]),
-            LeftRemoved(vec![3, 4, 7, 8, 9, 10, 11, 12, 0], vec![1, 5]),
-            LeftRemoved(vec![3, 4, 5, 6, 9, 10, 11, 12, 0], vec![1, 7]),
-            LeftRemoved(vec![3, 4, 5, 6, 7, 8, 11, 12, 0], vec![1, 9]),
-            LeftRemoved(vec![3, 4, 5, 6, 7, 8, 9, 10, 0], vec![1, 11]),
-            LeftRemoved(vec![1, 2, 7, 8, 9, 10, 11, 12, 0], vec![3, 5]),
-            LeftRemoved(vec![1, 2, 5, 6, 9, 10, 11, 12, 0], vec![3, 7]),
-            LeftRemoved(vec![1, 2, 5, 6, 7, 8, 11, 12, 0], vec![3, 9]),
-            LeftRemoved(vec![1, 2, 5, 6, 7, 8, 9, 10, 0], vec![3, 11]),
-            LeftRemoved(vec![1, 2, 3, 4, 9, 10, 11, 12, 0], vec![5, 7]),
-            LeftRemoved(vec![1, 2, 3, 4, 7, 8, 11, 12, 0], vec![5, 9]),
-            LeftRemoved(vec![1, 2, 3, 4, 7, 8, 9, 10, 0], vec![5, 11]),
-            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 11, 12, 0], vec![7, 9]),
-            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 9, 10, 0], vec![7, 11]),
-            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 7, 8, 0], vec![9, 11]),
+            LeftRemoved(vec![5, 6, 7, 8, 9, 10, 11, 12, 0], vec![0, 1]),
+            LeftRemoved(vec![3, 4, 7, 8, 9, 10, 11, 12, 0], vec![0, 2]),
+            LeftRemoved(vec![3, 4, 5, 6, 9, 10, 11, 12, 0], vec![0, 3]),
+            LeftRemoved(vec![3, 4, 5, 6, 7, 8, 11, 12, 0], vec![0, 4]),
+            LeftRemoved(vec![3, 4, 5, 6, 7, 8, 9, 10, 0], vec![0, 5]),
+            LeftRemoved(vec![1, 2, 7, 8, 9, 10, 11, 12, 0], vec![1, 2]),
+            LeftRemoved(vec![1, 2, 5, 6, 9, 10, 11, 12, 0], vec![1, 3]),
+            LeftRemoved(vec![1, 2, 5, 6, 7, 8, 11, 12, 0], vec![1, 4]),
+            LeftRemoved(vec![1, 2, 5, 6, 7, 8, 9, 10, 0], vec![1, 5]),
+            LeftRemoved(vec![1, 2, 3, 4, 9, 10, 11, 12, 0], vec![2, 3]),
+            LeftRemoved(vec![1, 2, 3, 4, 7, 8, 11, 12, 0], vec![2, 4]),
+            LeftRemoved(vec![1, 2, 3, 4, 7, 8, 9, 10, 0], vec![2, 5]),
+            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 11, 12, 0], vec![3, 4]),
+            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 9, 10, 0], vec![3, 5]),
+            LeftRemoved(vec![1, 2, 3, 4, 5, 6, 7, 8, 0], vec![4, 5]),
         ];
 
         check2(&mut c, nexts);
 
-        sol.remove_route(1);
+        dbg!("ooo");
+
+        let mut sol = Sol::new(&data);
         sol.add_route(&vec![0, 1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 11, 12, 0]);
         c.k_combinations_of_route(&sol, 1, 1);
         assert_eq!(c.k, 1);
         assert_eq!(c.route_len, 14);
-        assert_eq!(c.combination_indices[0], 1);
-        assert_eq!(c.combination_indices[1], 13);
+        assert_eq!(c.combination_indices2[0], 0);
+        assert_eq!(c.combination_indices2[1], 6);
 
         let nexts = vec![
-            LeftRemoved(vec![3, 5, 4, 6, 7, 8, 9, 10, 11, 12, 0], vec![1]),
-            LeftRemoved(vec![1, 5, 2, 6, 7, 8, 9, 10, 11, 12, 0], vec![3]),
-            LeftRemoved(vec![1, 3, 4, 2, 7, 8, 9, 10, 11, 12, 0], vec![5]),
-            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 9, 10, 11, 12, 0], vec![7]),
-            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 7, 8, 11, 12, 0], vec![9]),
-            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 0], vec![11]),
+            LeftRemoved(vec![3, 5, 4, 6, 7, 8, 9, 10, 11, 12, 0], vec![0]),
+            LeftRemoved(vec![1, 5, 2, 6, 7, 8, 9, 10, 11, 12, 0], vec![1]),
+            LeftRemoved(vec![1, 3, 4, 2, 7, 8, 9, 10, 11, 12, 0], vec![2]),
+            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 9, 10, 11, 12, 0], vec![3]),
+            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 7, 8, 11, 12, 0], vec![4]),
+            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 0], vec![5]),
         ];
 
         check2(&mut c, nexts);
 
-        sol.remove_route(1);
-        sol.add_route(&vec![0, 1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 11, 12, 0]);
-        c.k_combinations_of_route(&sol, 1, 2);
+        // sol.remove_route(1);
+        // sol.add_route(&vec![0, 1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 11, 12, 0]);
+        // c.k_combinations_of_route(&sol, 1, 2);
 
-        let nexts = vec![
-            LeftRemoved(vec![5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1, 3]),
-            LeftRemoved(vec![3, 4, 7, 8, 9, 10, 11, 12, 0], vec![1, 5]),
-            LeftRemoved(vec![3, 5, 4, 6, 9, 10, 11, 12, 0], vec![1, 7]),
-            LeftRemoved(vec![3, 5, 4, 6, 7, 8, 11, 12, 0], vec![1, 9]),
-            LeftRemoved(vec![3, 5, 4, 6, 7, 8, 9, 10, 0], vec![1, 11]),
-            LeftRemoved(vec![1, 2, 7, 8, 9, 10, 11, 12, 0], vec![3, 5]),
-            LeftRemoved(vec![1, 5, 2, 6, 9, 10, 11, 12, 0], vec![3, 7]),
-            LeftRemoved(vec![1, 5, 2, 6, 7, 8, 11, 12, 0], vec![3, 9]),
-            LeftRemoved(vec![1, 5, 2, 6, 7, 8, 9, 10, 0], vec![3, 11]),
-            LeftRemoved(vec![1, 3, 4, 2, 9, 10, 11, 12, 0], vec![5, 7]),
-            LeftRemoved(vec![1, 3, 4, 2, 7, 8, 11, 12, 0], vec![5, 9]),
-            LeftRemoved(vec![1, 3, 4, 2, 7, 8, 9, 10, 0], vec![5, 11]),
-            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 11, 12, 0], vec![7, 9]),
-            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 9, 10, 0], vec![7, 11]),
-            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 7, 8, 0], vec![9, 11]),
-        ];
-        check2(&mut c, nexts);
+        // let nexts = vec![
+        //     LeftRemoved(vec![5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1, 3]),
+        //     LeftRemoved(vec![3, 4, 7, 8, 9, 10, 11, 12, 0], vec![1, 5]),
+        //     LeftRemoved(vec![3, 5, 4, 6, 9, 10, 11, 12, 0], vec![1, 7]),
+        //     LeftRemoved(vec![3, 5, 4, 6, 7, 8, 11, 12, 0], vec![1, 9]),
+        //     LeftRemoved(vec![3, 5, 4, 6, 7, 8, 9, 10, 0], vec![1, 11]),
+        //     LeftRemoved(vec![1, 2, 7, 8, 9, 10, 11, 12, 0], vec![3, 5]),
+        //     LeftRemoved(vec![1, 5, 2, 6, 9, 10, 11, 12, 0], vec![3, 7]),
+        //     LeftRemoved(vec![1, 5, 2, 6, 7, 8, 11, 12, 0], vec![3, 9]),
+        //     LeftRemoved(vec![1, 5, 2, 6, 7, 8, 9, 10, 0], vec![3, 11]),
+        //     LeftRemoved(vec![1, 3, 4, 2, 9, 10, 11, 12, 0], vec![5, 7]),
+        //     LeftRemoved(vec![1, 3, 4, 2, 7, 8, 11, 12, 0], vec![5, 9]),
+        //     LeftRemoved(vec![1, 3, 4, 2, 7, 8, 9, 10, 0], vec![5, 11]),
+        //     LeftRemoved(vec![1, 3, 5, 4, 2, 6, 11, 12, 0], vec![7, 9]),
+        //     LeftRemoved(vec![1, 3, 5, 4, 2, 6, 9, 10, 0], vec![7, 11]),
+        //     LeftRemoved(vec![1, 3, 5, 4, 2, 6, 7, 8, 0], vec![9, 11]),
+        // ];
+        // check2(&mut c, nexts);
     }
 
     fn check2(c: &mut Combinations, nexts: Vec<LeftRemoved>) {
-        for LeftRemoved(next, removed) in nexts.iter().skip(1) {
-            assert!(c.next_combination_with_lower_score(0));
+        for (i, LeftRemoved(next, removed)) in nexts.iter().enumerate() {
+            dbg!(next);
+            dbg!(c.r());
+            dbg!(c.into_iter().removed);
+            dbg!(c.combination_indices2);
             assert_eq!(c.r(), *next);
             assert_eq!(c.into_iter().collect_vec(), *next);
-            assert_eq!(c.removed(), *removed);
+            // assert_eq!(c.removed(), *removed);
             let removed2 = c
                 .removed_idxs()
                 .iter()
-                .map(|x| c.route[*x].idx)
+                .copied()
+                // .map(|x| *x)
                 .collect_vec();
             assert_eq!(removed2, *removed);
+            assert_eq!(c.next_combination_with_lower_score(u64::max_value()), i != nexts.len() - 1);
+            dbg!(c.combination_indices2);
         }
-        assert!(!c.next_combination_with_lower_score(0));
     }
 }

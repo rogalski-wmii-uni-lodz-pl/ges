@@ -29,7 +29,7 @@ impl Eval {
         let i = idx(self.node, next_node);
         self.distance += data.dist[i];
         self.time += data.time[i];
-        self.time = std::cmp::max(self.time, nn.start);
+        self.time = self.time.max(nn.start);
         self.capacity += nn.dem;
 
         self.node = next_node;

@@ -104,7 +104,12 @@ impl<'a> Evaluator<'a> {
                 );
 
                 if m.is_not_empty() {
-                    m.removed[..k].copy_from_slice(self.combinations.removed());
+                    let removed_idxs = self.combinations.removed_idxs();
+                    let removed_pickups = self.combinations.pickups();
+                    for i in 0..k {
+                        m.removed[i] = removed_pickups[removed_idxs[i]].idx();
+                    }
+                    // m.removed[..k].copy_from_slice(self.combinations.removed());
                     mov.pick(&m)
                 }
 

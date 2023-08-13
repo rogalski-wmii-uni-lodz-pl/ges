@@ -69,10 +69,10 @@ impl<'a> Ges<'a> {
                 }
 
                 self.stats.add_iteration(solution.heap.size);
-                // self.stats.print_occasionally(solution);
+                self.stats.print_occasionally(solution);
             }
 
-            // self.stats.print_after_route_removal();
+            self.stats.print_after_route_removal();
         }
     }
 }
