@@ -303,8 +303,7 @@ mod test {
 
     struct LeftRemoved(Vec<usize>, Vec<usize>);
 
-    #[test]
-    fn second() {
+    fn prep() -> Data {
         let points = 13;
 
         let mut pts = [PointData {
@@ -322,13 +321,85 @@ mod test {
         }
 
         let matrix = vec![0; PTS * PTS];
-        let data = Data {
+        Data {
             dist: matrix.clone(),
             pts,
             max_cap: 0,
             time: matrix.clone(),
             points,
-        };
+        }
+    }
+
+    #[test]
+    fn sums() {
+        let data = prep();
+        let mut sol = Sol::new(&data);
+
+        for i in (1..13).step_by(2) {
+            for _ in 0..i {
+                sol.add_route(&vec![0, i, (i + 1), 0]);
+                sol.remove_route(i)
+            }
+        }
+        for i in (1..13).step_by(2) {
+            assert_eq!(sol.removed_times(i), i as u64);
+        }
+
+        let mut c = Combinations::new();
+        sol.add_route(&vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0]);
+        c.k_combinations_of_route(&sol, 1, 1);
+
+        for i in 0..5 {
+            assert_eq!(c.sum_of_next[i][0], 0);
+            assert_eq!(c.sum_of_next[i][1], (2 * i + 1 + 2) as u64);
+            assert_eq!(c.sum_of_next[i][2], u64::max_value());
+        }
+        assert_eq!(c.sum_of_next[5][0], 0);
+        assert_eq!(c.sum_of_next[5][1], 0);
+        assert_eq!(c.sum_of_next[5][2], u64::max_value());
+
+        c.k_combinations_of_route(&sol, 1, 2);
+
+        for i in 0..4 {
+            dbg!(i);
+            assert_eq!(c.sum_of_next[i][0], 0);
+            assert_eq!(c.sum_of_next[i][1], (2 * i + 1 + 2) as u64);
+            assert_eq!(
+                c.sum_of_next[i][2],
+                ((2 * i + 1 + 2) + (2 * i + 1 + 4)) as u64
+            );
+            assert_eq!(c.sum_of_next[i][3], u64::max_value());
+        }
+
+        let i = 4;
+        assert_eq!(c.sum_of_next[i][0], 0);
+        assert_eq!(c.sum_of_next[i][1], (2 * i + 1 + 2) as u64);
+        assert_eq!(c.sum_of_next[i][2], (2 * i + 1 + 2) as u64);
+        assert_eq!(c.sum_of_next[i][3], u64::max_value());
+
+        let i = 5;
+        assert_eq!(c.sum_of_next[i][0], 0);
+        assert_eq!(c.sum_of_next[i][1], 0);
+        assert_eq!(c.sum_of_next[i][2], u64::max_value());
+        assert_eq!(c.sum_of_next[i][3], u64::max_value());
+
+        assert_eq!(c.r(), vec![5, 6, 7, 8, 9, 10, 11, 12, 0]);
+        assert!(c.next_combination_with_lower_score(11));
+        assert_eq!(c.r(), vec![3, 4, 7, 8, 9, 10, 11, 12, 0]);
+        assert!(c.next_combination_with_lower_score(11));
+        assert_eq!(c.r(), vec![3, 4, 5, 6, 9, 10, 11, 12, 0]);
+        assert!(c.next_combination_with_lower_score(11));
+        assert_eq!(c.r(), vec![3, 4, 5, 6, 7, 8, 11, 12, 0]);
+        assert!(c.next_combination_with_lower_score(11));
+        assert_eq!(c.r(), vec![1, 2, 7, 8, 9, 10, 11, 12, 0]);
+        assert!(c.next_combination_with_lower_score(11));
+        assert_eq!(c.r(), vec![1, 2, 5, 6, 9, 10, 11, 12, 0]);
+        assert!(!c.next_combination_with_lower_score(11));
+    }
+
+    #[test]
+    fn second() {
+        let data = prep();
 
         let mut sol = Sol::new(&data);
 
@@ -407,28 +478,28 @@ mod test {
 
         check2(&mut c, nexts);
 
-        // sol.remove_route(1);
-        // sol.add_route(&vec![0, 1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 11, 12, 0]);
-        // c.k_combinations_of_route(&sol, 1, 2);
+        sol.remove_route(1);
+        sol.add_route(&vec![0, 1, 3, 5, 4, 2, 6, 7, 8, 9, 10, 11, 12, 0]);
+        c.k_combinations_of_route(&sol, 1, 2);
 
-        // let nexts = vec![
-        //     LeftRemoved(vec![5, 6, 7, 8, 9, 10, 11, 12, 0], vec![1, 3]),
-        //     LeftRemoved(vec![3, 4, 7, 8, 9, 10, 11, 12, 0], vec![1, 5]),
-        //     LeftRemoved(vec![3, 5, 4, 6, 9, 10, 11, 12, 0], vec![1, 7]),
-        //     LeftRemoved(vec![3, 5, 4, 6, 7, 8, 11, 12, 0], vec![1, 9]),
-        //     LeftRemoved(vec![3, 5, 4, 6, 7, 8, 9, 10, 0], vec![1, 11]),
-        //     LeftRemoved(vec![1, 2, 7, 8, 9, 10, 11, 12, 0], vec![3, 5]),
-        //     LeftRemoved(vec![1, 5, 2, 6, 9, 10, 11, 12, 0], vec![3, 7]),
-        //     LeftRemoved(vec![1, 5, 2, 6, 7, 8, 11, 12, 0], vec![3, 9]),
-        //     LeftRemoved(vec![1, 5, 2, 6, 7, 8, 9, 10, 0], vec![3, 11]),
-        //     LeftRemoved(vec![1, 3, 4, 2, 9, 10, 11, 12, 0], vec![5, 7]),
-        //     LeftRemoved(vec![1, 3, 4, 2, 7, 8, 11, 12, 0], vec![5, 9]),
-        //     LeftRemoved(vec![1, 3, 4, 2, 7, 8, 9, 10, 0], vec![5, 11]),
-        //     LeftRemoved(vec![1, 3, 5, 4, 2, 6, 11, 12, 0], vec![7, 9]),
-        //     LeftRemoved(vec![1, 3, 5, 4, 2, 6, 9, 10, 0], vec![7, 11]),
-        //     LeftRemoved(vec![1, 3, 5, 4, 2, 6, 7, 8, 0], vec![9, 11]),
-        // ];
-        // check2(&mut c, nexts);
+        let nexts = vec![
+            LeftRemoved(vec![5, 6, 7, 8, 9, 10, 11, 12, 0], vec![0, 1]),
+            LeftRemoved(vec![3, 4, 7, 8, 9, 10, 11, 12, 0], vec![0, 2]),
+            LeftRemoved(vec![3, 5, 4, 6, 9, 10, 11, 12, 0], vec![0, 3]),
+            LeftRemoved(vec![3, 5, 4, 6, 7, 8, 11, 12, 0], vec![0, 4]),
+            LeftRemoved(vec![3, 5, 4, 6, 7, 8, 9, 10, 0], vec![0, 5]),
+            LeftRemoved(vec![1, 2, 7, 8, 9, 10, 11, 12, 0], vec![1, 2]),
+            LeftRemoved(vec![1, 5, 2, 6, 9, 10, 11, 12, 0], vec![1, 3]),
+            LeftRemoved(vec![1, 5, 2, 6, 7, 8, 11, 12, 0], vec![1, 4]),
+            LeftRemoved(vec![1, 5, 2, 6, 7, 8, 9, 10, 0], vec![1, 5]),
+            LeftRemoved(vec![1, 3, 4, 2, 9, 10, 11, 12, 0], vec![2, 3]),
+            LeftRemoved(vec![1, 3, 4, 2, 7, 8, 11, 12, 0], vec![2, 4]),
+            LeftRemoved(vec![1, 3, 4, 2, 7, 8, 9, 10, 0], vec![2, 5]),
+            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 11, 12, 0], vec![3, 4]),
+            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 9, 10, 0], vec![3, 5]),
+            LeftRemoved(vec![1, 3, 5, 4, 2, 6, 7, 8, 0], vec![4, 5]),
+        ];
+        check2(&mut c, nexts);
     }
 
     fn check2(c: &mut Combinations, nexts: Vec<LeftRemoved>) {
