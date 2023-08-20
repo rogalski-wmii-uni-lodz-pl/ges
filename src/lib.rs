@@ -14,14 +14,15 @@ pub mod stats;
 
 const UNSERVED: usize = usize::MAX;
 pub const K_MAX: usize = 10;
-// pub const TOTAL_TIME: u64 = 600;
 
 pub struct Ges<'a> {
     evaluator: Evaluator<'a>,
     stats: Stats,
 }
 
+#[derive(Default)]
 pub enum Log {
+    #[default]
     Quiet,
     Verbose,
     Extra,
@@ -31,6 +32,16 @@ pub struct Conf {
     pub max_optimization_time: Duration,
     pub target_routes: usize,
     pub log: Log,
+}
+
+impl Default for Conf {
+    fn default() -> Self {
+        Self {
+            max_optimization_time: Duration::new(600, 0),
+            target_routes: 0,
+            log: Default::default(),
+        }
+    }
 }
 
 impl<'a> Ges<'a> {

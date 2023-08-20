@@ -114,10 +114,11 @@ impl Stats {
             0
         };
         println!(
-            "routes: {} after {}, {:?}",
+            "routes: {} after {}, {:?} (total {:?})",
             routes + rs,
             self.iterations().current(),
-            self.time.route_start.elapsed()
+            self.time.route_start.elapsed(),
+            self.time.start.elapsed(),
         );
     }
 
