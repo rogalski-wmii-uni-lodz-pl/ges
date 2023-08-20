@@ -34,14 +34,13 @@ impl<'a> Ges<'a> {
 
             let total = self.stats.total_time().as_secs() ;
             if routes <= target_routes || total >= TOTAL_TIME {
-                let rs = if solution.heap.size > 0 {
-                    1
-                } else {
-                    0
-                };
-                print!("routes: {} ", routes + rs);
-                self.stats.print_after_route_removal();
+                self.stats.print_after_route_removal(solution);
                 solution.eprn();
+
+                for i in 0..solution.data.points {
+                    println!("{} {}", i, solution.heap.removed_times[i]);
+                }
+
                 break;
             }
 
@@ -73,7 +72,7 @@ impl<'a> Ges<'a> {
                 self.stats.print_occasionally(solution);
             }
 
-            self.stats.print_after_route_removal();
+            self.stats.print_after_route_removal(solution);
         }
     }
 }

@@ -106,9 +106,16 @@ impl Stats {
         }
     }
 
-    pub fn print_after_route_removal(&self) {
+    pub fn print_after_route_removal(&self, solution: &Sol) {
+        let routes = solution.routes_number();
+        let rs = if solution.heap.size > 0 {
+            1
+        } else {
+            0
+        };
         println!(
-            "after {}, {:?}",
+            "routes: {} after {}, {:?}",
+            routes + rs,
             self.iterations().current(),
             self.time.route_start.elapsed()
         );

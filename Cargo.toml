@@ -2,7 +2,7 @@
 name = "ges"
 version = "0.1.0"
 edition = "2021"
-authors = [ "asdf" ]
+authors = [ "Marek Rogalski" ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,4 +11,4 @@ itertools = "0.10.5"
 phf = { version = "0.11.2", features = ["phf_macros", "macros"] }
 rand = "0.8.5"
 rand_xoshiro = "0.6.0"
-verifier = { path = "../vrp/verifier" }
+verifier = { git = "https://github.com/rogalski-wmii-uni-lodz-pl/vrp" }
